@@ -1,14 +1,14 @@
-# Phoenix Multi‑Agent SOC
+# Phoenix Multi-Agent SOC
 
-Multi‑agent demo for SOC triage with **ReAct** + **AutoGPT**‑style planner orchestrated by **LangGraph**, plus **MCP‑style audit envelopes** and optional **HSM/PKCS#11 signing stubs**.
+Multi-agent demo for SOC triage with **ReAct** + **AutoGPT**-style planner orchestrated by **LangGraph**, plus **MCP-style audit envelopes** and optional **HSM/PKCS#11 signing stubs**.
 
-> Tailored for TSMC Senior Agent AI Engineer: agent architectures, tool use, multi‑agent collaboration, safety/ethics guardrails, and SOC‑style log triage.
+> Demonstrates autonomous agent architectures, tool use, multi-agent collaboration, safety/ethics guardrails, and SOC-style log triage — relevant to advanced SOC and semiconductor fab security contexts.
 
 ## Features
-- **ReAct triage agent** (tool‑use) — searches logs, looks up CTI, emits JSON with severity, summary, MITRE placeholders, and recommendations.
-- **AutoGPT‑style planner** — decomposes tasks into steps (deterministic stub, interview‑friendly).
+- **ReAct triage agent** (tool-use) — searches logs, looks up CTI, emits JSON with severity, summary, MITRE placeholders, and recommendations.
+- **AutoGPT-style planner** — decomposes tasks into steps (deterministic stub, interview-friendly).
 - **LangGraph coordinator** — planner → executor orchestration.
-- **Auditability & safety** — MCP‑style envelope with hashes and demo signature; deny‑list policy gate.
+- **Auditability & safety** — MCP-style envelope with hashes and demo signature; deny-list policy gate and ethical guardrails.
 - **SOC context** — tiny Next.js dashboard to visualize triage output.
 
 ## Quickstart (Python)
@@ -16,13 +16,13 @@ Multi‑agent demo for SOC triage with **ReAct** + **AutoGPT**‑style planner o
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -U pip
 pip install langchain langgraph langchain-openai pydantic tiktoken python-dotenv
-# Single‑agent ReAct triage on sample logs
+# Single-agent ReAct triage on sample logs
 python examples/run_triage.py
-# Multi‑agent (planner → executor)
+# Multi-agent (planner → executor)
 python examples/run_multi_agent.py
 # Sign + verify an audit envelope (stub)
 python examples/sign_and_verify.py
-```
+
 
 ### Environment
 Copy `.env.example` to `.env` and set your keys (or swap to a local LLM).
@@ -38,7 +38,7 @@ npm run dev
 ```
 Visit http://localhost:3000 and paste JSON from `examples/run_multi_agent.py` to visualize alerts.
 
-## Mapping to TSMC JD
+## Skills Demonstrated
 - **Agent architectures**: ReAct tool‑use + AutoGPT‑style planner + LangGraph orchestration.
 - **Tool integration**: mock SIEM (Wazuh/OpenSearch) and CTI; **PKCS#11** signer stub.
 - **Safety/Ethics**: deny‑listed actions, audit envelope with verifiable hashes/signature.
@@ -59,4 +59,4 @@ tests/
 ```
 
 ## License
-MIT — use freely for interviews and demos.
+MIT — use freely for demos.
