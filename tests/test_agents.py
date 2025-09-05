@@ -46,8 +46,8 @@ def main():
 
     # Goals are a list of tasks the agent should autonomously pursue
     goals = [
-        "Find TSMC Job Opportunities "
-        "Return a one-sentence summary."
+    "Analyze security incidents in fab logs",
+    "Summarize anomalies and mitigation steps in one sentence"
     ]
 
     # Run AutoGPT (it plans, calls tools, writes to memory, and produces a final answer)
