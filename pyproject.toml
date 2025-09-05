@@ -1,0 +1,17 @@
+[project]
+name = "phoenix-multi-agent-soc"
+version = "0.1.0"
+description = "Multi-agent SOC demo: ReAct + AutoGPT planner + LangGraph + MCP audit envelope"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "langchain>=0.2.0",
+  "langgraph>=0.2.0",
+  "langchain-openai>=0.1.0",
+  "pydantic>=2",
+  "tiktoken",
+  "python-dotenv",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
