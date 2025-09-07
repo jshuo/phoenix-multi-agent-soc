@@ -12,4 +12,5 @@ def plan(task: str) -> List[Dict]:
         {"id": 2, "action": "lookup_cti", "args": {"indicator": "203.0.113.10"}},
         {"id": 3, "action": "summarize", "args": {"policy": "no destructive ops"}},
     ]
+    print(steps)
     return steps
