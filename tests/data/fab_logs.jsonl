@@ -1,0 +1,6 @@
+{"ts":"2025-08-31T08:02:10Z","host":"etch-01","msg":"login failure for user op_qa from 10.12.7.44"}
+{"ts":"2025-08-31T08:03:12Z","host":"litho-03","msg":"firmware updated to v2.9.4 by user eng42 (signature: MISSING)"}
+{"ts":"2025-08-31T08:06:50Z","host":"mes-gw","msg":"SCP transfer 2.3GB to 52.94.21.10 completed"}
+{"ts":"2025-08-31T08:08:02Z","host":"etch-01","msg":"login failure for user op_qa from 10.12.7.44"}
+{"ts":"2025-08-31T08:12:19Z","host":"litho-03","msg":"process param dose=145 (baseline 120)"}
+{"ts":"2025-08-31T08:15:29Z","host":"hsm-01","msg":"verify signature FAILED for image sha256:deadbeef"}
