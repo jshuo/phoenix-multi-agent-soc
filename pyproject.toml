@@ -15,6 +15,7 @@ dependencies = [
   "python-dotenv",
   "stable-baselines3",
   "gymnasium",
+  "faiss-cpu",
   "dotenv"
 ]
 
