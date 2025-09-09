@@ -117,18 +117,23 @@ class FabDispatchEnv(gym.Env):
         # advance time
         done_jobs, defects, avg_wait = self._advance_time()
 
-        # reward shaping
-        throughput_reward = +1.0 * done_jobs
-        wip_penalty = -0.05 * len(self.queue_waits)
-        wait_penalty = -0.02 * avg_wait
-        defect_penalty = -0.5 * defects
-        reward = throughput_reward + wip_penalty + wait_penalty + defect_penalty
+        # Reward shaping: prioritize both throughput AND quality
+        throughput_reward = +2.0 * done_jobs          # slightly lower base reward
+        defect_penalty    = -3.0 * defects            # much harsher defect penalty
+        wip_penalty       = -0.05 * len(self.queue_waits)   # stronger queue penalty
+        wait_penalty      = -0.05 * avg_wait          # penalize lateness more
+
+        # Bonus for defect-free completions
+        if defects == 0 and done_jobs > 0:
+            throughput_reward += 1.0 * done_jobs
+
+        reward = throughput_reward + defect_penalty + wip_penalty + wait_penalty
 
         self.total_completed += done_jobs
         self.total_defects += defects
 
         # episode termination: fixed horizon
-        terminated = (self.t >= 200)
+        terminated = (self.t >= 1000)
         truncated = False
 
         info = {

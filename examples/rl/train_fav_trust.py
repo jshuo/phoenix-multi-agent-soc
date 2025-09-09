@@ -4,8 +4,9 @@ from stable_baselines3 import PPO
 from fab_env import FabDispatchEnv
 
 env = FabDispatchEnv()
-model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=50_000)
+policy_kwargs = dict(net_arch=[64, 64])   # two hidden layers, 64 units each
+model = PPO("MlpPolicy", env, policy_kwargs=policy_kwargs, verbose=1)
+model.learn(total_timesteps=200_000)
 
 # Evaluate
 obs, _ = env.reset()
