@@ -1,0 +1,17 @@
+feature,description
+nis99_rate,Chi-square>9.21 fail rate proxy
+nis95_rate,Chi-square>5.99 fail rate proxy
+temp_sla_violation,Fraction violating 2–8 C SLA (proxy)
+temp_jump_rate,Rate of |ΔT|>8 C events (proxy)
+press_residual_proxy,Pressure–altitude residual severity (proxy)
+pressure_jump_rate,Rate of |Δp| jumps (proxy)
+route_corridor_dev_km,Mean distance to route corridor (km)
+speed_spike_rate,Speed spike rate proxy
+accel_spike_rate,Acceleration spike rate proxy
+ts_jitter_sec,P95(|Δt - nominal|) seconds (proxy)
+non_monotonic_ts_rate,Fraction of non-monotonic timestamps (proxy)
+missing_frac,Fraction of missing/late packets (proxy)
+battery_pct,Battery percentage
+cal_age_hours,Hours since last calibration
+gnss_hiacc_mode,GNSS high-accuracy mode (0/1)
+trust_score,Running device trust score (0–1)
