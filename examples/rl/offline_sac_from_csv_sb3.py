@@ -1,15 +1,12 @@
 """
-Offline DQN on logged device history (pure off-policy)
+Offline SAC on logged device history (pure off-policy)
 ------------------------------------------------------
-Updated version using DQN instead of DiscreteSAC for discrete action spaces.
-DQN is well-suited for offline RL and discrete actions.
+Updated version using SAC for continuous action spaces.
+We'll use a continuous action space with a softmax layer to handle discrete actions.
 
-python offline_discrete_sac_from_csv_sb3.py \
-  --csv offpolicy_device_history.csv \    
-  --total-steps 8000 --batch-size 1024 --gamma 0.99 --lr 3e-4
+python offline_sac_from_csv_sb3.py  --csv offpolicy_device_history.csv  --total-steps 8000 --batch-size 1024 --gamma 0.99 --lr 3e-4
 
 """
-
 
 import argparse
 from dataclasses import dataclass
@@ -22,9 +19,11 @@ import gymnasium as gym
 from gymnasium import spaces
 
 import torch
+import torch.nn as nn
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3 import DQN  # Changed from DiscreteSAC to DQN
+from stable_baselines3 import SAC
+from stable_baselines3.common.noise import NormalActionNoise
 
 FEATURES = [
     "nis99_rate","nis95_rate","temp_sla_violation","temp_jump_rate",
@@ -42,10 +41,10 @@ class Args:
     buffer_mult: float = 5.0  # buffer_size = buffer_mult * dataset_size
     gamma: float = 0.99
     lr: float = 3e-4
-    tau: float = 1.0  # DQN uses hard updates by default
+    tau: float = 0.005  # SAC uses soft updates
     seed: int = 0
     train_frac: float = 0.9
-    logdir: str = "sb3_offline_dqn"  # Updated directory name
+    logdir: str = "sb3_offline_sac"
 
 # ----------------------------
 # Dataset utilities (unchanged)
@@ -69,9 +68,11 @@ def train_val_split(episodes: List[pd.DataFrame], frac=0.9, seed=0):
 class OfflineDeviceEnv(gym.Env):
     """
     Offline env that replays transitions from a concatenated set of episodes.
-    The agent's action is ignored; we emit the logged (s, r, s', done) deterministically.
+    For SAC with discrete actions, we use a continuous action space and interpret
+    the action as logits for a categorical distribution.
     """
     metadata = {"render_modes": []}
+    
     def __init__(self, obs_arr, act_arr, rew_arr, next_obs_arr, done_arr):
         super().__init__()
         self.obs_arr = obs_arr.astype(np.float32)
@@ -81,9 +82,11 @@ class OfflineDeviceEnv(gym.Env):
         self.done_arr = done_arr.astype(bool)
         self.n = self.obs_arr.shape[0]
         self.idx = 0
+        
         obs_dim = self.obs_arr.shape[1]
         self.observation_space = spaces.Box(low=-10, high=10, shape=(obs_dim,), dtype=np.float32)
-        self.action_space = spaces.Discrete(N_ACTIONS)
+        # Use continuous action space for SAC with finite bounds
+        self.action_space = spaces.Box(low=-5.0, high=5.0, shape=(N_ACTIONS,), dtype=np.float32)
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
@@ -94,18 +97,37 @@ class OfflineDeviceEnv(gym.Env):
     def step(self, action):
         # Ignore action; return logged transition at idx
         o = self.obs_arr[self.idx]
-        a = self.act_arr[self.idx]
+        discrete_a = self.act_arr[self.idx]
         r = self.rew_arr[self.idx]
         op = self.next_obs_arr[self.idx]
         d = bool(self.done_arr[self.idx])
-        info = {"behavior_action": int(a)}
+        
+        # Convert discrete_a to scalar if it's an array
+        if isinstance(discrete_a, np.ndarray):
+            behavior_action = int(np.argmax(discrete_a))  # Convert continuous back to discrete
+        else:
+            behavior_action = int(discrete_a)
+            
+        info = {"behavior_action": behavior_action}
         # advance with wrap-around to keep sampling
         self.idx = (self.idx + 1) % self.n
         return op, float(r), d, False, info
 
 # ----------------------------
-# Preprocessing (unchanged)
+# Preprocessing (updated for SAC)
 # ----------------------------
+
+def discrete_to_continuous_action(discrete_actions):
+    """Convert discrete actions to continuous actions for SAC within [-5, 5] bounds"""
+    continuous_actions = np.zeros((len(discrete_actions), N_ACTIONS), dtype=np.float32)
+    for i, action in enumerate(discrete_actions):
+        # Create a representation where the chosen action has a high value
+        # and other actions have lower values, all within [-5, 5] bounds
+        continuous_actions[i] = np.random.normal(-2.0, 0.5, N_ACTIONS)  # Background noise
+        continuous_actions[i] = np.clip(continuous_actions[i], -5.0, 5.0)
+        continuous_actions[i, action] = np.random.normal(3.0, 0.5)  # High value for chosen action
+        continuous_actions[i, action] = np.clip(continuous_actions[i, action], -5.0, 5.0)
+    return continuous_actions
 
 def stack_transitions(episodes: List[pd.DataFrame], mu=None, sig=None):
     obs_list, act_list, rew_list, done_list, next_obs_list = [], [], [], [], []
@@ -117,6 +139,7 @@ def stack_transitions(episodes: List[pd.DataFrame], mu=None, sig=None):
     if mu is None:
         mu = feat_all.mean(axis=0)
         sig = feat_all.std(axis=0) + 1e-6
+    
     # build transitions for each episode
     for ep in episodes:
         X = ep[FEATURES].to_numpy(dtype=np.float32)
@@ -124,22 +147,29 @@ def stack_transitions(episodes: List[pd.DataFrame], mu=None, sig=None):
         A = ep["action"].to_numpy(dtype=np.int64)
         R = ep["reward"].to_numpy(dtype=np.float32)
         D = ep["done"].to_numpy(dtype=bool)
+        
+        # Convert discrete actions to continuous for SAC
+        A_continuous = discrete_to_continuous_action(A)
+        
         Xp = np.roll(X, -1, axis=0)
         Xp[-1] = X[-1]
+        
         obs_list.append(X)
-        act_list.append(A)
+        act_list.append(A_continuous)
         rew_list.append(R)
         done_list.append(D)
         next_obs_list.append(Xp)
+    
     obs = np.concatenate(obs_list, axis=0)
     acts = np.concatenate(act_list, axis=0)
     rews = np.concatenate(rew_list, axis=0)
     dones = np.concatenate(done_list, axis=0)
     next_obs = np.concatenate(next_obs_list, axis=0)
+    
     return obs, acts, rews, dones, next_obs, mu, sig
 
 # ----------------------------
-# Training (Updated for DQN)
+# Training (Updated for SAC)
 # ----------------------------
 
 def main(cli: Args):
@@ -160,8 +190,8 @@ def main(cli: Args):
     dataset_size = obs.shape[0]
     buffer_size = int(cli.buffer_mult * dataset_size)
 
-    # Updated DQN configuration
-    model = DQN(
+    # SAC configuration
+    model = SAC(
         "MlpPolicy",
         vec_env,
         learning_rate=cli.lr,
@@ -171,24 +201,24 @@ def main(cli: Args):
         learning_starts=0,
         train_freq=1,
         gradient_steps=1,
-        target_update_interval=int(cli.tau * cli.total_steps) if cli.tau < 1.0 else int(cli.tau),  # Handle tau parameter
-        exploration_fraction=0.0,  # No exploration since we're doing offline RL
-        exploration_initial_eps=0.0,
-        exploration_final_eps=0.0,
+        tau=cli.tau,
+        ent_coef="auto",  # Automatic entropy coefficient tuning
+        target_entropy="auto",
+        use_sde=False,
         verbose=1,
         seed=cli.seed,
     )
 
     # Preload replay buffer with logged transitions
-    # DQN expects actions as integers (unlike SAC which expects float arrays)
     obs_dim = obs.shape[1]
+    action_dim = acts.shape[1]
     
-    # For DQN, we need to add transitions one by one
+    # For SAC, we add transitions one by one
     for i in range(dataset_size):
         model.replay_buffer.add(
             obs=obs[i],
             next_obs=next_obs[i],
-            action=acts[i],
+            action=acts[i],  # Continuous actions
             reward=rews[i],
             done=dones[i],
             infos=[{}],
@@ -215,6 +245,15 @@ def main(cli: Args):
     with open(out / "train_report.json", "w") as f:
         json.dump(report, f, indent=2)
     print("Saved:", out / "checkpoint.zip", out / "scaler.npz", out / "train_report.json")
+
+
+# ----------------------------
+# Action interpretation utility for inference
+# ----------------------------
+
+def continuous_to_discrete_action(continuous_action):
+    """Convert continuous action output from SAC to discrete action"""
+    return np.argmax(continuous_action)
 
 
 if __name__ == "__main__":

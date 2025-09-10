@@ -3,10 +3,7 @@ Inference script for the trained DQN model
 ------------------------------------------
 Use this to make predictions on new device data in production.
 
-python evaluate_trained_dqn.py \             
-  --model sb3_offline_dqn/checkpoint.zip \
-  --scaler sb3_offline_dqn/scaler.npz \                      
-  --csv offpolicy_device_history.csv
+python evaluate_trained_dqn.py --model sb3_offline_dqn/checkpoint.zip  --scaler sb3_offline_dqn/scaler.npz  --csv offpolicy_device_history.csv
 
 """
 
@@ -166,8 +163,8 @@ def example_usage():
 }
     
     # Make prediction
-    # result = predictor.predict_action(device_data)
-    result = predictor.predict_action(device_data_bad)
+    result = predictor.predict_action(device_data)
+    # result = predictor.predict_action(device_data_bad)
     
     print("Prediction Results:")
     print(f"Recommended Action: {result['action_name']} (ID: {result['action_id']})")
