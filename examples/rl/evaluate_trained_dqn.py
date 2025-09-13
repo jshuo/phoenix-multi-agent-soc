@@ -124,7 +124,7 @@ def example_usage():
     predictor = DeviceActionPredictor()
     
     # Example device data
-    device_data = {
+    device_data_1 = {
         "nis99_rate": 0.95,
         "nis95_rate": 0.89,
         "temp_sla_violation": 0.02,
@@ -143,7 +143,7 @@ def example_usage():
         "trust_score": 0.82
     }
     
-    device_data_bad = {
+    device_data_2 = {
     "nis99_rate": 0.98,
     "nis95_rate": 0.95,
     "temp_sla_violation": 0.95,
@@ -160,10 +160,10 @@ def example_usage():
     "cal_age_hours": 1200.0,
     "gnss_hiacc_mode": 0.0,
     "trust_score": 0.1
-}
+   }
     
     # Make prediction
-    result = predictor.predict_action(device_data)
+    result = predictor.predict_action(device_data_1)
     # result = predictor.predict_action(device_data_bad)
     
     print("Prediction Results:")

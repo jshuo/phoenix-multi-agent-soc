@@ -28,10 +28,16 @@ def bucket_anomaly(score):
     return 0 if score < 0.1 else (1 if score < 0.3 else 2)
 
 def reward_fn(state, action):
-    cost = {0:0.0,1:-0.4,2:-0.2,3:-0.1,4:-0.5}[action]
-    if   state==0: gain = {0:1.0,3:0.3,2:0.2,1:-0.6,4:-1.0}[action]
-    elif state==1: gain = {3:1.0,0:0.4,2:0.2,1:-0.2,4:-0.6}[action]
-    else:          gain = {4:1.2,1:0.9,2:0.3,3:-0.2,0:-1.0}[action]
+    #                   0:monitor 1:escalate 2:calibrate 3:peer_check 4:flag
+    cost = {0:0.0,      1:-0.4,   2:-0.2,     3:-0.05,     4:-0.5}[action]  # cheaper to peer_check
+
+    if state == 0:  # low anomaly
+        gain = {0:1.0,  3:0.4,     2:0.2,      1:-0.6,      4:-1.0}[action]
+    elif state == 1:  # medium anomaly → prefer peer_check
+        gain = {3:1.2,  0:0.3,     2:0.2,      1:-0.1,      4:-0.6}[action]
+    else:  # state == 2 high anomaly
+        gain = {4:1.1,  1:0.8,     3:0.5,      2:0.3,       0:-1.0}[action]
+
     return gain + cost
 
 def train_q_policy(episodes=800, gamma=0.9, alpha=0.3, eps_start=0.9, eps_end=0.05):
@@ -44,6 +50,12 @@ def train_q_policy(episodes=800, gamma=0.9, alpha=0.3, eps_start=0.9, eps_end=0.
             r = reward_fn(s,a)
             s_next = (0 if s==0 and np.random.rand()<0.85 else
                       2 if s==2 and np.random.rand()<0.75 else 1)
+            """
+            Q[s,a] → the current estimate of the Q-value.
+            r → the immediate reward, given by reward_fn(state, action).
+            gamma*np.max(Q[s_next]) → the discounted future reward, i.e. the best expected value of the next state.
+            (1-alpha)*Q[s,a] + alpha*(...) → the learning rate update rule, blending old estimate with new Bellman target.
+            """
             Q[s,a] = (1-alpha)*Q[s,a] + alpha*(r + gamma*np.max(Q[s_next]))
             s = s_next
         eps = max(eps_end, eps-decay)
@@ -77,7 +89,7 @@ class StreamingPipeline:
         self.feature_buffer = []  # recent features for (re)fitting IF
 
     def _ensure_kf(self, t0, p0):
-        if self.kf_t is None: self.kf_t = SimpleKF1D(t0, R=0.3)
+        if self.kf_t is None: self.kf_t = SimpleKF1D(t0, R=0.1)
         if self.kf_p is None: self.kf_p = SimpleKF1D(p0, R=0.15)
 
     def _features_from_window(self):
@@ -205,6 +217,9 @@ class StreamingPipeline:
 
             # anomaly score (higher => more anomalous)
             score = float(-self.iforest.decision_function([feat])[0])
+            # --- SLA-boosted anomaly (makes state jump more often) ---
+            sla = base_metrics["temp_sla_violation"]
+            score += 1.001 * sla  
 
             # simple trust score from anomaly score (squash & invert)
             # tweak gain for your data distribution
@@ -232,7 +247,7 @@ class StreamingPipeline:
         return out
 
 # ---------------- Simulated live stream (includes GPS/time-ish signals) ----------------
-def simulated_stream(n=2000, start_ts=0.0, dt=60.0, spike_p=0.03, seed=0):
+def simulated_stream(n=2000, start_ts=0.0, dt=60.0, spike_p=0.30, seed=0):
     rng = np.random.default_rng(seed)
     base_t, base_p = 6.5, 101.3
     speed = 40.0  # km/h baseline
@@ -247,7 +262,7 @@ def simulated_stream(n=2000, start_ts=0.0, dt=60.0, spike_p=0.03, seed=0):
         press= base_p + 0.5*np.sin(2*np.pi*i/200) + rng.normal(0,0.3)
 
         if rng.random() < spike_p:
-            temp += rng.choice([8,-8,12,-12])
+            temp += rng.choice([8, -8, 12, -12, 16, -16])
             press+= rng.choice([6,-6])*0.5
 
         # speed (random walk) & accel
