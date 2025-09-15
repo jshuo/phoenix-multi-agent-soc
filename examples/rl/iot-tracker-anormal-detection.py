@@ -52,7 +52,13 @@ def train_q_policy(episodes=800, gamma=0.9, alpha=0.3, eps_start=0.9, eps_end=0.
             Exploration vs. Exploitation: Choose action
             np.random.rand() < eps → exploration: pick a random action (np.random.randint(5) ignores Q-values).
             else int(np.argmax(Q[s])) → exploitation: pick the action with the highest Q-value (greedy policy).
-            
+            eps_start=0.9, eps_end=0.05
+            eps = max(eps_end, eps-decay)
+            Training begins with ε = 0.9 (90% random exploration).
+
+            Over episodes, ε decays linearly down to 0.05 (5% exploration).
+
+            That’s exactly the ε-greedy strategy: a mix of exploration and exploitation, with exploration decaying over time.
             """
             a = np.random.randint(5) if np.random.rand()<eps else int(np.argmax(Q[s]))
             r = reward_fn(s,a)

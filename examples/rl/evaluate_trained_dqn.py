@@ -163,7 +163,7 @@ def example_usage():
    }
     
     # Make prediction
-    result = predictor.predict_action(device_data_1)
+    result = predictor.predict_action(device_data_2)
     # result = predictor.predict_action(device_data_bad)
     
     print("Prediction Results:")
