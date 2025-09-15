@@ -125,10 +125,6 @@ class OfflineDeviceEnv(gym.Env):
             press_residual=row["press_residual_proxy"],
         )
 
-        r1 = self.df.reward.iloc[self.idx]  # use precomputed reward instead
-
-        print ("reward:", r, r1 )
-
         # Advance to next
         next_idx = (self.idx + 1) % self.n
         obs_next = self._get_obs(next_idx)
@@ -144,8 +140,15 @@ class OfflineDeviceEnv(gym.Env):
 # ----------------------------
 
 def stack_transitions(episodes: List[pd.DataFrame], mu=None, sig=None):
+    # Validate required columns exist
+    required_cols = set(FEATURES + ["action"])
+    missing = required_cols - set(episodes[0].columns)
+    if missing:
+        raise ValueError(f"CSV is missing required columns: {sorted(missing)}")
+
     obs_list, act_list, rew_list, done_list, next_obs_list = [], [], [], [], []
 
+    # Flatten features to compute scaler if needed
     feat_stack = [ep[FEATURES].to_numpy(dtype=np.float32) for ep in episodes]
     feat_all = np.concatenate(feat_stack, axis=0)
 
@@ -154,17 +157,45 @@ def stack_transitions(episodes: List[pd.DataFrame], mu=None, sig=None):
         sig = feat_all.std(axis=0) + 1e-6
 
     for ep in episodes:
-        X = ep[FEATURES].to_numpy(dtype=np.float32)
-        X = (X - mu) / sig
-        A = ep["action"].to_numpy(dtype=np.int64)
-        R = ep["reward"].to_numpy(dtype=np.float32)
-        D = ep["done"].to_numpy(dtype=bool)
+        # Normalize observations with provided scaler
+        X_raw = ep[FEATURES].to_numpy(dtype=np.float32)
+        X = (X_raw - mu) / sig
 
+        # Logged actions (ensure in range)
+        A = ep["action"].to_numpy(dtype=np.int64)
+        if (A < 0).any() or (A >= N_ACTIONS).any():
+            raise ValueError("Found action outside [0, N_ACTIONS). Check your CSV.")
+
+        # Compute rewards from reward_fn using per-row signals
+        # Optional columns default gracefully via .get
+        hard_label = ep["hard_label"] if "hard_label" in ep.columns else pd.Series([None] * len(ep))
+        nis99 = ep["nis99_rate"]
+        tjump = ep["temp_jump_rate"]
+        pres  = ep["press_residual_proxy"]
+
+        R = np.array(
+            [
+                reward_fn(
+                    int(a),
+                    label=(None if pd.isna(hl) else int(hl)),
+                    nis99_rate=float(nr),
+                    temp_jump_rate=float(tj),
+                    press_residual=float(pr),
+                )
+                for a, hl, nr, tj, pr in zip(A, hard_label, nis99, tjump, pres)
+            ],
+            dtype=np.float32,
+        )
+
+        # Dones (optional; default False)
+        D = ep["done"].to_numpy(dtype=bool) if "done" in ep.columns else np.zeros(len(ep), dtype=bool)
+
+        # Next-obs: shift by one within episode
         Xp = np.roll(X, -1, axis=0)
         Xp[-1] = X[-1]
 
         obs_list.append(X)
-        act_list.append(A)
+        act_list.append(A.astype(np.int64))
         rew_list.append(R)
         done_list.append(D)
         next_obs_list.append(Xp)
@@ -199,6 +230,7 @@ def main(cli: Args):
     env = OfflineDeviceEnv(train_df, mu, sig)
     vec_env = DummyVecEnv([lambda: env])
 
+
     model = DQN(
         "MlpPolicy",
         vec_env,
@@ -218,6 +250,19 @@ def main(cli: Args):
         policy_kwargs=dict(net_arch=[256, 256]),
     )
 
+    # After creating the model, preload the buffer
+    obs, acts, rews, dones, next_obs, mu, sig = stack_transitions(train_eps)
+
+    # Add transitions to replay buffer
+    for i in range(len(obs)):
+        model.replay_buffer.add(
+            obs[i],
+            next_obs[i],
+            acts[i],
+            rews[i],
+            dones[i],
+            infos=[{"TimeLimit.truncated": False}]  # length == n_envs (1)
+    )
 
 
     # Learn purely from the preloaded buffer
