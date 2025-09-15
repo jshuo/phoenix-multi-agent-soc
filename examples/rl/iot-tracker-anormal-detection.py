@@ -46,6 +46,14 @@ def train_q_policy(episodes=800, gamma=0.9, alpha=0.3, eps_start=0.9, eps_end=0.
     for _ in range(episodes):
         s = np.random.choice([0,1,2], p=[0.6,0.25,0.15])
         for _ in range(5):
+
+            """
+            π(s)=argamax​Q(s,a)
+            Exploration vs. Exploitation: Choose action
+            np.random.rand() < eps → exploration: pick a random action (np.random.randint(5) ignores Q-values).
+            else int(np.argmax(Q[s])) → exploitation: pick the action with the highest Q-value (greedy policy).
+            
+            """
             a = np.random.randint(5) if np.random.rand()<eps else int(np.argmax(Q[s]))
             r = reward_fn(s,a)
             s_next = (0 if s==0 and np.random.rand()<0.85 else

@@ -1,18 +1,22 @@
 """
 Offline DQN on logged device history (pure off-policy)
 ------------------------------------------------------
-Updated version using DQN instead of DiscreteSAC for discrete action spaces.
-DQN is well-suited for offline RL and discrete actions.
+Train DQN from a fixed CSV dataset by:
+  1) Normalizing features
+  2) Wrapping the dataset in a read-only Gymnasium env (agent action ignored)
+  3) Preloading the SB3 replay buffer with logged (s, a, r, s', done)
+  4) Learning purely from the buffer
 
-python offline_dqn_from_csv_sb3.py  --csv offpolicy_device_history.csv  --total-steps 8000 --batch-size 1024 --gamma 0.99 --lr 3e-4
-
+Run:
+  python offline_dqn_from_csv_sb3.py \
+    --csv offpolicy_device_history.csv \
+    --total-steps 800000 --batch-size 1024 --gamma 0.99 --lr 3e-4
 """
-
 
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -20,9 +24,8 @@ import gymnasium as gym
 from gymnasium import spaces
 
 import torch
-from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import DummyVecEnv
-from stable_baselines3 import DQN  # Changed from DiscreteSAC to DQN
+from stable_baselines3 import DQN
 
 FEATURES = [
     "nis99_rate","nis95_rate","temp_sla_violation","temp_jump_rate",
@@ -40,18 +43,18 @@ class Args:
     buffer_mult: float = 5.0  # buffer_size = buffer_mult * dataset_size
     gamma: float = 0.99
     lr: float = 3e-4
-    tau: float = 1.0  # DQN uses hard updates by default
     seed: int = 0
     train_frac: float = 0.9
-    logdir: str = "sb3_offline_dqn"  # Updated directory name
+    logdir: str = "sb3_offline_dqn"
+    target_update_interval: int = 1000  # proper DQN target update control
 
 # ----------------------------
-# Dataset utilities (unchanged)
+# Dataset utilities
 # ----------------------------
 
 def build_episodes(df: pd.DataFrame) -> List[pd.DataFrame]:
     eps = []
-    for dev, g in df.groupby("device_id"):
+    for _, g in df.groupby("device_id"):
         g = g.sort_values("t").reset_index(drop=True)
         eps.append(g)
     return eps
@@ -61,74 +64,111 @@ def train_val_split(episodes: List[pd.DataFrame], frac=0.9, seed=0):
     idx = np.arange(len(episodes))
     rng.shuffle(idx)
     k = int(len(idx) * frac)
-    train_idx, val_idx = idx[:k], idx[k:]
-    return [episodes[i] for i in train_idx], [episodes[i] for i in val_idx]
+    return [episodes[i] for i in idx[:k]], [episodes[i] for i in idx[k:]]
+
+def reward_fn(action, *, label=None, nis99_rate=0.0, temp_jump_rate=0.0, press_residual=0.0):
+    # 1) action costs
+    r = {0:0.0, 1:-0.2, 2:-0.1, 3:-0.05, 4:0.0}[action]
+    # 2) outcome scoring (if label known at this step)
+    if label in (0, 1):
+        if action == 4 and label == 1:   r += 1.0          # correct flag
+        elif action == 4 and label == 0: r -= 3.0          # false positive
+        elif action != 4 and label == 1: r -= 10.0         # false negative
+        elif action != 4 and label == 0: r += 1.0          # correct keep
+    # 3) shaping penalties
+    r -= 0.5 * nis99_rate
+    r -= 0.2 * temp_jump_rate
+    r -= 0.2 * (press_residual / 20.0)
+    return float(r)
+
+# ----------------------------
+# Replay-only environment
+# ----------------------------
 
 class OfflineDeviceEnv(gym.Env):
     """
-    Offline env that replays transitions from a concatenated set of episodes.
-    The agent's action is ignored; we emit the logged (s, r, s', done) deterministically.
+    Offline env that replays states from a dataset,
+    but computes reward using reward_fn() instead of a precomputed column.
     """
     metadata = {"render_modes": []}
-    def __init__(self, obs_arr, act_arr, rew_arr, next_obs_arr, done_arr):
+
+    def __init__(self, df: pd.DataFrame, mu, sig):
         super().__init__()
-        self.obs_arr = obs_arr.astype(np.float32)
-        self.act_arr = act_arr.astype(np.int64)
-        self.rew_arr = rew_arr.astype(np.float32)
-        self.next_obs_arr = next_obs_arr.astype(np.float32)
-        self.done_arr = done_arr.astype(bool)
-        self.n = self.obs_arr.shape[0]
+        self.df = df.reset_index(drop=True)
+        self.mu, self.sig = mu, sig
+        self.n = len(self.df)
         self.idx = 0
-        obs_dim = self.obs_arr.shape[1]
-        self.observation_space = spaces.Box(low=-10, high=10, shape=(obs_dim,), dtype=np.float32)
+
+        obs_dim = len(FEATURES)
+        self.observation_space = spaces.Box(-10, 10, shape=(obs_dim,), dtype=np.float32)
         self.action_space = spaces.Discrete(N_ACTIONS)
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
-        # Start at a random transition to decorrelate batches
         self.idx = np.random.randint(0, self.n)
-        return self.obs_arr[self.idx], {}
+        return self._get_obs(self.idx), {}
 
-    def step(self, action):
-        # Ignore action; return logged transition at idx
-        o = self.obs_arr[self.idx]
-        a = self.act_arr[self.idx]
-        r = self.rew_arr[self.idx]
-        op = self.next_obs_arr[self.idx]
-        d = bool(self.done_arr[self.idx])
-        info = {"behavior_action": int(a)}
-        # advance with wrap-around to keep sampling
-        self.idx = (self.idx + 1) % self.n
-        return op, float(r), d, False, info
+    def _get_obs(self, i):
+        # normalize feature vector
+        x = self.df.loc[i, FEATURES].to_numpy(dtype=np.float32)
+        return ((x - self.mu) / self.sig).astype(np.float32)
+
+    def step(self, action: int):
+        row = self.df.iloc[self.idx]
+
+        # Compute reward dynamically using reward_fn
+        r = reward_fn(
+            action,
+            label=row.get("hard_label", None),
+            nis99_rate=row["nis99_rate"],
+            temp_jump_rate=row["temp_jump_rate"],
+            press_residual=row["press_residual_proxy"],
+        )
+
+        r1 = self.df.reward.iloc[self.idx]  # use precomputed reward instead
+
+        print ("reward:", r, r1 )
+
+        # Advance to next
+        next_idx = (self.idx + 1) % self.n
+        obs_next = self._get_obs(next_idx)
+
+        done = bool(row.get("done", False))
+        info = {"device_id": row["device_id"], "t": row["t"]}
+
+        self.idx = next_idx
+        return obs_next, r, done, False, info
 
 # ----------------------------
-# Preprocessing (unchanged)
+# Preprocessing
 # ----------------------------
 
 def stack_transitions(episodes: List[pd.DataFrame], mu=None, sig=None):
     obs_list, act_list, rew_list, done_list, next_obs_list = [], [], [], [], []
-    # for feature stats
-    feat_stack = []
-    for ep in episodes:
-        feat_stack.append(ep[FEATURES].to_numpy(dtype=np.float32))
+
+    feat_stack = [ep[FEATURES].to_numpy(dtype=np.float32) for ep in episodes]
     feat_all = np.concatenate(feat_stack, axis=0)
+
     if mu is None:
         mu = feat_all.mean(axis=0)
         sig = feat_all.std(axis=0) + 1e-6
-    # build transitions for each episode
+
     for ep in episodes:
         X = ep[FEATURES].to_numpy(dtype=np.float32)
         X = (X - mu) / sig
         A = ep["action"].to_numpy(dtype=np.int64)
         R = ep["reward"].to_numpy(dtype=np.float32)
         D = ep["done"].to_numpy(dtype=bool)
+
         Xp = np.roll(X, -1, axis=0)
         Xp[-1] = X[-1]
+
         obs_list.append(X)
         act_list.append(A)
         rew_list.append(R)
         done_list.append(D)
         next_obs_list.append(Xp)
+
     obs = np.concatenate(obs_list, axis=0)
     acts = np.concatenate(act_list, axis=0)
     rews = np.concatenate(rew_list, axis=0)
@@ -137,7 +177,7 @@ def stack_transitions(episodes: List[pd.DataFrame], mu=None, sig=None):
     return obs, acts, rews, dones, next_obs, mu, sig
 
 # ----------------------------
-# Training (Updated for DQN)
+# Training
 # ----------------------------
 
 def main(cli: Args):
@@ -146,55 +186,41 @@ def main(cli: Args):
 
     df = pd.read_csv(cli.csv)
     episodes = build_episodes(df)
-    train_eps, val_eps = train_val_split(episodes, frac=cli.train_frac, seed=cli.seed)
+    train_eps, _ = train_val_split(episodes, frac=cli.train_frac, seed=cli.seed)
 
-    # transitions + normalization
-    obs, acts, rews, dones, next_obs, mu, sig = stack_transitions(train_eps)
+    # Concatenate training episodes back into a single DataFrame
+    train_df = pd.concat(train_eps, ignore_index=True)
 
-    # Env wraps the dataset (ignored actions)
-    env = OfflineDeviceEnv(obs, acts, rews, next_obs, dones)
+    # Compute normalization stats
+    feat_all = train_df[FEATURES].to_numpy(dtype=np.float32)
+    mu, sig = feat_all.mean(axis=0), feat_all.std(axis=0) + 1e-6
+
+    # Create environment with dynamic reward
+    env = OfflineDeviceEnv(train_df, mu, sig)
     vec_env = DummyVecEnv([lambda: env])
 
-    dataset_size = obs.shape[0]
-    buffer_size = int(cli.buffer_mult * dataset_size)
-
-    # Updated DQN configuration
     model = DQN(
         "MlpPolicy",
         vec_env,
         learning_rate=cli.lr,
         batch_size=cli.batch_size,
         gamma=cli.gamma,
-        buffer_size=buffer_size,
+        buffer_size=200000,
         learning_starts=0,
         train_freq=1,
         gradient_steps=1,
-        target_update_interval=int(cli.tau * cli.total_steps) if cli.tau < 1.0 else int(cli.tau),  # Handle tau parameter
-        exploration_fraction=0.0,  # No exploration since we're doing offline RL
+        target_update_interval=cli.target_update_interval,
+        exploration_fraction=0.0,     # no exploration in strict offline
         exploration_initial_eps=0.0,
         exploration_final_eps=0.0,
         verbose=1,
         seed=cli.seed,
+        policy_kwargs=dict(net_arch=[256, 256]),
     )
 
-    # Preload replay buffer with logged transitions
-    # DQN expects actions as integers (unlike SAC which expects float arrays)
-    obs_dim = obs.shape[1]
-    
-    # For DQN, we need to add transitions one by one
-    for i in range(dataset_size):
-        model.replay_buffer.add(
-            obs=obs[i],
-            next_obs=next_obs[i],
-            action=acts[i],
-            reward=rews[i],
-            done=dones[i],
-            infos=[{}],
-        )
 
-    print(f"Preloaded {dataset_size} transitions into replay buffer")
 
-    # Learn purely from buffer; env rollouts just advance indices (ignored actions)
+    # Learn purely from the preloaded buffer
     model.learn(total_timesteps=cli.total_steps, progress_bar=True)
 
     # Save artifacts
@@ -202,17 +228,6 @@ def main(cli: Args):
     out.mkdir(parents=True, exist_ok=True)
     model.save(out / "checkpoint.zip")
     np.savez(out / "scaler.npz", mu=mu, sig=sig, features=np.array(FEATURES))
-
-    # Simple offline eval: avg reward under behavior data (not on-policy return)
-    report = {
-        "dataset_size": int(dataset_size),
-        "mean_reward_in_logs": float(rews.mean()),
-        "std_reward_in_logs": float(rews.std()),
-    }
-    import json
-    with open(out / "train_report.json", "w") as f:
-        json.dump(report, f, indent=2)
-    print("Saved:", out / "checkpoint.zip", out / "scaler.npz", out / "train_report.json")
 
 
 if __name__ == "__main__":
@@ -223,9 +238,9 @@ if __name__ == "__main__":
     p.add_argument('--buffer-mult', type=float, default=Args.buffer_mult)
     p.add_argument('--gamma', type=float, default=Args.gamma)
     p.add_argument('--lr', type=float, default=Args.lr)
-    p.add_argument('--tau', type=float, default=Args.tau)
     p.add_argument('--seed', type=int, default=Args.seed)
     p.add_argument('--train-frac', type=float, default=Args.train_frac)
     p.add_argument('--logdir', type=str, default=Args.logdir)
+    p.add_argument('--target-update-interval', type=int, default=Args.target_update_interval)
     args = p.parse_args()
     main(Args(**vars(args)))
