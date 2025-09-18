@@ -34,20 +34,28 @@ class GridWorld:
 
         # Define the reward function
         if state == (0, 1):
-            return (4, 1), 10
+            return (0, 1), 10  # Stay in terminal state with reward
         elif state == (0, 3):
-            return (2, 3), 5
+            return (0, 3), 5   # Stay in terminal state with reward
         else:
             if action == 0:  # 'UP'
-                return (max(0, i-1), j), 0
+                new_state = (max(0, i-1), j)
             elif action == 1:  # 'RIGHT'
-                return (i, min(self.grid_size-1, j+1)), 0
+                new_state = (i, min(self.grid_size-1, j+1))
             elif action == 2:  # 'DOWN'
-                return (min(self.grid_size-1, i+1), j), 0
+                new_state = (min(self.grid_size-1, i+1), j)
             elif action == 3:  # 'LEFT'
-                return (i, max(0, j-1)), 0
+                new_state = (i, max(0, j-1))
             else:
                 return state, -1    #-1 reward for illegal action
+            
+            # Check if we reached a goal state
+            if new_state == (0, 1):
+                return new_state, 10
+            elif new_state == (0, 3):
+                return new_state, 5
+            else:
+                return new_state, -0.1  # Small negative reward for each step
 
     def reset(self):
         """Reset to a random starting position"""
@@ -111,18 +119,19 @@ class GridWorld:
         return self.V.copy()
 
     # 3. Q-LEARNING (Model-Free)
-    def q_learning(self, episodes=5000, alpha=0.1, epsilon=0.1):
-        """Q-Learning algorithm"""
-        print("Running Q-Learning...")
+    def q_learning(self, episodes=1000, alpha=0.1, epsilon=0.1):
+        """Q-Learning algorithm with progress tracking"""
+        print(f"Running Q-Learning for {episodes} episodes...")
         self.Q = np.zeros((self.grid_size, self.grid_size, self.action_size))
         
         rewards_per_episode = []
+        progress_interval = max(1, episodes // 10)  # Show progress 10 times
         
         for episode in range(episodes):
             state = self.reset()
             total_reward = 0
             steps = 0
-            max_steps = 100
+            max_steps = 50  # Reduced from 100 for faster execution
             
             while not self.is_terminal(state) and steps < max_steps:
                 i, j = state
@@ -151,9 +160,16 @@ class GridWorld:
             
             rewards_per_episode.append(total_reward)
             
-            # Decay epsilon
-            if episode % 1000 == 0 and epsilon > 0.01:
-                epsilon *= 0.995
+            # Show progress
+            if episode % progress_interval == 0:
+                avg_reward = np.mean(rewards_per_episode[-100:]) if len(rewards_per_episode) >= 100 else np.mean(rewards_per_episode)
+                print(f"  Episode {episode}/{episodes}, Avg Reward: {avg_reward:.2f}, Epsilon: {epsilon:.3f}")
+            
+            # Decay epsilon more frequently
+            if episode % 100 == 0 and epsilon > 0.01:
+                epsilon *= 0.99
+        
+        print("Q-Learning completed!")
         
         # Extract value function from Q-values
         self.V = np.max(self.Q, axis=2)
@@ -162,16 +178,18 @@ class GridWorld:
         return rewards_per_episode
 
     # 4. TEMPORAL DIFFERENCE LEARNING (TD)
-    def td_learning(self, episodes=5000, alpha=0.1):
-        """TD(0) Learning for policy evaluation"""
-        print("Running TD Learning...")
+    def td_learning(self, episodes=1000, alpha=0.1):
+        """TD(0) Learning for policy evaluation with progress tracking"""
+        print(f"Running TD Learning for {episodes} episodes...")
         self.V = np.random.random((self.grid_size, self.grid_size)) * 0.1
+        
+        progress_interval = max(1, episodes // 10)
         
         # Use a random policy for evaluation
         for episode in range(episodes):
             state = self.reset()
             steps = 0
-            max_steps = 100
+            max_steps = 50  # Reduced for faster execution
             
             while not self.is_terminal(state) and steps < max_steps:
                 i, j = state
@@ -193,7 +211,13 @@ class GridWorld:
                 
                 state = next_state
                 steps += 1
+            
+            # Show progress
+            if episode % progress_interval == 0:
+                max_value = np.max(self.V)
+                print(f"  Episode {episode}/{episodes}, Max Value: {max_value:.3f}")
         
+        print("TD Learning completed!")
         return self.V.copy()
 
     # Helper methods
@@ -337,7 +361,7 @@ class GridWorld:
         
         # Q-Learning
         self.V = np.zeros((self.grid_size, self.grid_size))
-        q_rewards = self.q_learning(episodes=3000)
+        q_rewards = self.q_learning(episodes=1000)  # Reduced from 3000
         algorithms['Q-Learning'] = self.V.copy()
         
         # Visualize comparison
@@ -401,6 +425,6 @@ if __name__ == "__main__":
     
     # Test Q-Learning with learning curve
     env_ql = GridWorld(grid_size=5, gamma=0.9)
-    rewards = env_ql.q_learning(episodes=5000)
+    rewards = env_ql.q_learning(episodes=1000)  # Reduced from 5000
     env_ql.visualize_value_function("Q-Learning - Learned Value Function")
     env_ql.visualize_policy("Q-Learning - Learned Policy")
