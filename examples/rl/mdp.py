@@ -361,7 +361,7 @@ class GridWorld:
         
         # Q-Learning
         self.V = np.zeros((self.grid_size, self.grid_size))
-        q_rewards = self.q_learning(episodes=1000)  # Reduced from 3000
+        q_rewards = self.q_learning(episodes=10000)  # Reduced from 3000
         algorithms['Q-Learning'] = self.V.copy()
         
         # Visualize comparison
