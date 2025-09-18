@@ -18,9 +18,5 @@ flowchart TD
     Agent --> Ops[Operators / SOC / Dashboard]
     Agent --> Devices["IoT Devices\n(recalibration, flagging, etc.)"]
 
-    style KF fill:#f9f,stroke:#333,stroke-width:2px
-    style IF fill:#bbf,stroke:#333,stroke-width:2px
-    style RL fill:#bfb,stroke:#333,stroke-width:2px
-    style Agent fill:#ff9,stroke:#333,stroke-width:2px
 
 ```
