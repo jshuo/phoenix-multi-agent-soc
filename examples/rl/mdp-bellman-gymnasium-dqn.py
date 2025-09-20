@@ -21,6 +21,7 @@ class GridWorldEnv(gym.Env):
         # GridWorld setup - dynamically set start and goal based on grid size
         self.start = (grid_size - 1, 0)          # bottom-left
         self.goal = (0, grid_size - 1)           # top-right
+        self.obstacle = (2, 3)
         self.actions = ['UP', 'RIGHT', 'DOWN', 'LEFT']
         self.a2delta = {
             0: (-1, 0),   # UP
@@ -62,9 +63,15 @@ class GridWorldEnv(gym.Env):
         self.current_state = (nr, nc)
         
         # Calculate reward
-        reward = 10.0 if self.current_state == self.goal else -0.1  # Small negative reward for each step
+        if self.current_state == self.goal:
+            reward = 10.0
+        elif self.current_state == self.obstacle:
+            reward = -10.0
+        else:
+            reward = -0.1  # Small negative reward for each step
+       
         terminated = (self.current_state == self.goal)
-        
+       
         return self.state_to_coords(self.current_state), reward, terminated, False, {}
 
 class TrainingCallback(BaseCallback):
@@ -175,10 +182,10 @@ def plot_dqn_policy(env, model):
     for y in range(env.grid_size + 1):
         ax1.plot([0, env.grid_size], [y, y], color='black')
     
-    # Draw arrows for best actions
+     # Draw arrows for best actions
     for r in range(env.grid_size):
         for c in range(env.grid_size):
-            if (r, c) == env.goal:
+            if (r, c) == env.goal or (r, c) == env.obstacle:
                 continue
                 
             best_action = int(np.argmax(Q[r, c]))
@@ -192,15 +199,18 @@ def plot_dqn_policy(env, model):
                         xytext=(x - arrow_scale*dc, y + arrow_scale*dr),
                         arrowprops=dict(arrowstyle='->', lw=2))
     
-    # Mark start & goal
-    font_size = max(10, min(16, 100 // env.grid_size))
-    start_x, start_y = env.start[1] + 0.5, env.grid_size - env.start[0] - 0.8
-    goal_x, goal_y = env.goal[1] + 0.5, env.grid_size - env.goal[0] - 0.8
-    
-    ax1.text(start_x, start_y, "S", ha='center', va='center', 
-            fontsize=font_size, fontweight='bold', color='blue')
-    ax1.text(goal_x, goal_y, "G", ha='center', va='center', 
-            fontsize=font_size, fontweight='bold', color='red')
+        # Mark start, goal, and obstacle
+        font_size = max(10, min(16, 100 // env.grid_size))
+        start_x, start_y = env.start[1] + 0.5, env.grid_size - env.start[0] - 0.8
+        goal_x, goal_y = env.goal[1] + 0.5, env.grid_size - env.goal[0] - 0.8
+        obstacle_x, obstacle_y = env.obstacle[1] + 0.5, env.grid_size - env.obstacle[0] - 0.8
+        
+        ax1.text(start_x, start_y, "S", ha='center', va='center', 
+                fontsize=font_size, fontweight='bold', color='blue')
+        ax1.text(goal_x, goal_y, "G", ha='center', va='center', 
+                fontsize=font_size, fontweight='bold', color='red')
+        ax1.text(obstacle_x, obstacle_y, "X", ha='center', va='center', 
+                fontsize=font_size, fontweight='bold', color='black')
     
     ax1.set_xlim(0, env.grid_size)
     ax1.set_ylim(0, env.grid_size)
