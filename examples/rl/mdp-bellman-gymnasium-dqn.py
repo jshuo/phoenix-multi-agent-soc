@@ -56,23 +56,24 @@ class GridWorldEnv(gym.Env):
         r, c = self.current_state
         nr, nc = r + dr, c + dc
         
-        # Stay in place if hitting wall
-        if not (0 <= nr < self.grid_size and 0 <= nc < self.grid_size):
-            nr, nc = r, c
+        # Check bounds AND obstacle before moving
+        if not (0 <= nr < self.grid_size and 0 <= nc < self.grid_size) or (nr, nc) == self.obstacle:
+            nr, nc = r, c  # Stay in current position - don't move into wall or obstacle
             
         self.current_state = (nr, nc)
         
         # Calculate reward
         if self.current_state == self.goal:
             reward = 10.0
-        elif self.current_state == self.obstacle:
-            reward = -10.0
+        elif (r + dr, c + dc) == self.obstacle:  # Tried to move into obstacle
+            reward = -5.0  # Penalty for attempting to move into obstacle
         else:
             reward = -0.1  # Small negative reward for each step
-       
+    
         terminated = (self.current_state == self.goal)
-       
+    
         return self.state_to_coords(self.current_state), reward, terminated, False, {}
+
 
 class TrainingCallback(BaseCallback):
     """Callback to track training progress"""
@@ -110,6 +111,11 @@ def extract_q_values_from_dqn(model, env):
     # Get Q-values for each state
     for r in range(env.grid_size):
         for c in range(env.grid_size):
+            if (r, c) == env.obstacle:
+                # Obstacle states should have very negative Q-values
+                Q[r, c] = np.full(env.action_space.n, -100.0)
+                continue
+                
             state = np.array([r, c], dtype=np.int32)
             # Get Q-values from the model
             obs_tensor = torch.FloatTensor(state).unsqueeze(0)
@@ -287,11 +293,11 @@ def run_dqn_experiment(grid_size=4, timesteps=10000):
 
 if __name__ == "__main__":
     # Test different grid sizes
-    grid_sizes = [8]
+    grid_sizes = [5]
     
     # Run experiments for different grid sizes
     for grid_size in grid_sizes:
         # Scale timesteps based on grid complexity
-        timesteps = max(5000, grid_size * grid_size * 200)
+        timesteps = max(20000, grid_size * grid_size * 200)
         run_dqn_experiment(grid_size, timesteps)
         print("\n" + "="*80 + "\n")
