@@ -277,7 +277,7 @@ def run_dqn_experiment(grid_size=4, timesteps=10000):
 
 if __name__ == "__main__":
     # Test different grid sizes
-    grid_sizes = [4]
+    grid_sizes = [8]
     
     # Run experiments for different grid sizes
     for grid_size in grid_sizes:
