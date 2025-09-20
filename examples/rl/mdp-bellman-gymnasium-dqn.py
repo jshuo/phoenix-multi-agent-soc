@@ -19,9 +19,10 @@ class GridWorldEnv(gym.Env):
         self.observation_space = spaces.Box(low=0, high=grid_size-1, shape=(2,), dtype=np.int32)
         
         # GridWorld setup - dynamically set start and goal based on grid size
-        self.start = (grid_size - 1, 0)          # bottom-left
-        self.goal = (0, grid_size - 1)           # top-right
-        self.obstacle = (2, 3)
+        self.start = (grid_size - 1, 0)          # bottom-left: (7,0) for 8x8
+        self.goal = (0, grid_size - 1)           # top-right: (0,7) for 8x8
+        self.obstacle = (grid_size // 2, grid_size // 2)  # center: (4,4) for 8x8
+
         self.actions = ['UP', 'RIGHT', 'DOWN', 'LEFT']
         self.a2delta = {
             0: (-1, 0),   # UP
@@ -66,7 +67,7 @@ class GridWorldEnv(gym.Env):
         if self.current_state == self.goal:
             reward = 10.0
         elif (r + dr, c + dc) == self.obstacle:  # Tried to move into obstacle
-            reward = -5.0  # Penalty for attempting to move into obstacle
+            reward = -5  # Penalty for attempting to move into obstacle
         else:
             reward = -0.1  # Small negative reward for each step
     
@@ -121,6 +122,16 @@ def extract_q_values_from_dqn(model, env):
             obs_tensor = torch.FloatTensor(state).unsqueeze(0)
             with torch.no_grad():
                 q_values = model.q_net(obs_tensor).cpu().numpy()[0]
+            
+            # Mask invalid actions (that would lead to obstacles or walls)
+            for action in range(env.action_space.n):
+                dr, dc = env.a2delta[action]
+                nr, nc = r + dr, c + dc
+                
+                # If action leads to wall or obstacle, set very low Q-value
+                if not (0 <= nr < env.grid_size and 0 <= nc < env.grid_size) or (nr, nc) == env.obstacle:
+                    q_values[action] = -100.0
+            
             Q[r, c] = q_values
     
     return Q
@@ -188,7 +199,7 @@ def plot_dqn_policy(env, model):
     for y in range(env.grid_size + 1):
         ax1.plot([0, env.grid_size], [y, y], color='black')
     
-     # Draw arrows for best actions
+    # Draw arrows for best actions
     for r in range(env.grid_size):
         for c in range(env.grid_size):
             if (r, c) == env.goal or (r, c) == env.obstacle:
@@ -204,20 +215,21 @@ def plot_dqn_policy(env, model):
             ax1.annotate('', xy=(x + arrow_scale*dc, y - arrow_scale*dr),
                         xytext=(x - arrow_scale*dc, y + arrow_scale*dr),
                         arrowprops=dict(arrowstyle='->', lw=2))
-    
-        # Mark start, goal, and obstacle
-        font_size = max(10, min(16, 100 // env.grid_size))
-        start_x, start_y = env.start[1] + 0.5, env.grid_size - env.start[0] - 0.8
-        goal_x, goal_y = env.goal[1] + 0.5, env.grid_size - env.goal[0] - 0.8
-        obstacle_x, obstacle_y = env.obstacle[1] + 0.5, env.grid_size - env.obstacle[0] - 0.8
-        
-        ax1.text(start_x, start_y, "S", ha='center', va='center', 
-                fontsize=font_size, fontweight='bold', color='blue')
-        ax1.text(goal_x, goal_y, "G", ha='center', va='center', 
-                fontsize=font_size, fontweight='bold', color='red')
-        ax1.text(obstacle_x, obstacle_y, "X", ha='center', va='center', 
-                fontsize=font_size, fontweight='bold', color='black')
-    
+
+    # Move these OUTSIDE the loops
+    font_size = max(10, min(16, 100 // env.grid_size))
+    start_x, start_y = env.start[1] + 0.5, env.grid_size - env.start[0] - 0.5
+    goal_x, goal_y = env.goal[1] + 0.5, env.grid_size - env.goal[0] - 0.5
+    obstacle_x, obstacle_y = env.obstacle[1] + 0.5, env.grid_size - env.obstacle[0] - 0.5
+
+    ax1.text(start_x, start_y, "S", ha='center', va='center', 
+            fontsize=font_size, fontweight='bold', color='blue')
+    ax1.text(goal_x, goal_y, "G", ha='center', va='center', 
+            fontsize=font_size, fontweight='bold', color='red')
+    ax1.text(obstacle_x, obstacle_y, "X", ha='center', va='center', 
+            fontsize=font_size, fontweight='bold', color='black')
+
+
     ax1.set_xlim(0, env.grid_size)
     ax1.set_ylim(0, env.grid_size)
     ax1.set_aspect('equal')
@@ -293,7 +305,7 @@ def run_dqn_experiment(grid_size=4, timesteps=10000):
 
 if __name__ == "__main__":
     # Test different grid sizes
-    grid_sizes = [5]
+    grid_sizes = [8]
     
     # Run experiments for different grid sizes
     for grid_size in grid_sizes:
