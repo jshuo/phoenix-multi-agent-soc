@@ -1,279 +1,238 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 import gymnasium as gym
 from gymnasium import spaces
 
 class GridWorldEnv(gym.Env):
     """Custom GridWorld Environment that follows gymnasium interface"""
     
-    def __init__(self, grid_size=5, gamma=0.9):
+    def __init__(self, grid_size=4):
         super().__init__()
         self.grid_size = grid_size
-        self.gamma = gamma
         
         # Define action and observation spaces (required by gymnasium)
         self.action_space = spaces.Discrete(4)  # UP, RIGHT, DOWN, LEFT
-        self.observation_space = spaces.Box(
-            low=0, high=grid_size-1, shape=(2,), dtype=np.int32
-        )
+        self.observation_space = spaces.Discrete(grid_size * grid_size)
         
-        # Goal states and rewards
-        self.goal_states = {(0, 1): 10, (0, 3): 5}
+        # GridWorld setup - dynamically set start and goal based on grid size
+        self.start = (grid_size - 1, 0)          # bottom-left
+        self.goal = (0, grid_size - 1)           # top-right
+        self.actions = ['UP', 'RIGHT', 'DOWN', 'LEFT']
+        self.a2delta = {
+            0: (-1, 0),   # UP
+            1: (0, 1),    # RIGHT
+            2: (1, 0),    # DOWN
+            3: (0, -1),   # LEFT
+        }
+        
         self.current_state = None
+        
+    def state_to_idx(self, state):
+        """Convert (row, col) state to index"""
+        return state[0] * self.grid_size + state[1]
+    
+    def idx_to_state(self, idx):
+        """Convert index to (row, col) state"""
+        return (idx // self.grid_size, idx % self.grid_size)
         
     def reset(self, seed=None, options=None):
         """Reset environment to initial state"""
         super().reset(seed=seed)
-        
-        # Random starting position (not on goal states)
-        while True:
-            i = self.np_random.integers(0, self.grid_size)
-            j = self.np_random.integers(0, self.grid_size)
-            if (i, j) not in self.goal_states:
-                break
-        
-        self.current_state = np.array([i, j])
-        return self.current_state.copy(), {}
+        self.current_state = self.start
+        return self.state_to_idx(self.current_state), {}
     
     def step(self, action):
         """Execute action and return (observation, reward, terminated, truncated, info)"""
-        i, j = self.current_state
+        dr, dc = self.a2delta[action]
+        r, c = self.current_state
+        nr, nc = r + dr, c + dc
         
-        # Move based on action
-        if action == 0:  # UP
-            new_i, new_j = max(0, i-1), j
-        elif action == 1:  # RIGHT
-            new_i, new_j = i, min(self.grid_size-1, j+1)
-        elif action == 2:  # DOWN
-            new_i, new_j = min(self.grid_size-1, i+1), j
-        elif action == 3:  # LEFT
-            new_i, new_j = i, max(0, j-1)
-        
-        self.current_state = np.array([new_i, new_j])
+        # Stay in place if hitting wall
+        if not (0 <= nr < self.grid_size and 0 <= nc < self.grid_size):
+            nr, nc = r, c
+            
+        self.current_state = (nr, nc)
         
         # Calculate reward
-        if (new_i, new_j) in self.goal_states:
-            reward = self.goal_states[(new_i, new_j)]
-            terminated = True
-        else:
-            reward = -0.1  # Small negative reward for each step
-            terminated = False
+        reward = 10.0 if self.current_state == self.goal else 0.0
+        terminated = (self.current_state == self.goal)
         
-        return self.current_state.copy(), reward, terminated, False, {}
+        return self.state_to_idx(self.current_state), reward, terminated, False, {}
 
-class GymnasiumRLAgent:
-    """RL algorithms adapted to work with Gymnasium environments"""
+def train_q_learning_gymnasium(grid_size=4, episodes=200):
+    """Train Q-learning using Gymnasium environment with configurable grid size"""
     
-    def __init__(self, env, gamma=0.9):
-        self.env = env
-        self.gamma = gamma
-        self.grid_size = env.grid_size
-        
-        # Value functions
-        self.V = np.zeros((self.grid_size, self.grid_size))
-        self.Q = np.zeros((self.grid_size, self.grid_size, env.action_space.n))
-        self.policy = np.zeros((self.grid_size, self.grid_size), dtype=int)
+    # Create environment
+    env = GridWorldEnv(grid_size=grid_size)
     
-    def q_learning(self, episodes=1000, alpha=0.1, epsilon=0.1):
-        """Q-Learning using gymnasium environment"""
-        print(f"Running Q-Learning with Gymnasium for {episodes} episodes...")
-        
-        rewards_per_episode = []
-        epsilon_decay = 0.995
-        min_epsilon = 0.01
-        
-        for episode in range(episodes):
-            state, _ = self.env.reset()
-            total_reward = 0
-            steps = 0
-            max_steps = 100
-            
-            while steps < max_steps:
-                i, j = state
-                
-                # Epsilon-greedy action selection
-                if np.random.random() < epsilon:
-                    action = self.env.action_space.sample()
-                else:
-                    action = np.argmax(self.Q[i, j, :])
-                
-                # Take action in environment
-                next_state, reward, terminated, truncated, _ = self.env.step(action)
-                next_i, next_j = next_state
-                
-                # Q-Learning update
-                if terminated:
-                    target = reward
-                else:
-                    target = reward + self.gamma * np.max(self.Q[next_i, next_j, :])
-                
-                self.Q[i, j, action] += alpha * (target - self.Q[i, j, action])
-                
-                total_reward += reward
-                steps += 1
-                
-                if terminated or truncated:
-                    break
-                    
-                state = next_state
-            
-            rewards_per_episode.append(total_reward)
-            
-            # Decay epsilon
-            if epsilon > min_epsilon:
-                epsilon *= epsilon_decay
-            
-            # Progress reporting
-            if episode % 100 == 0:
-                avg_reward = np.mean(rewards_per_episode[-100:])
-                print(f"  Episode {episode}/{episodes}, Avg Reward: {avg_reward:.2f}")
-        
-        # Extract value function and policy
-        self.V = np.max(self.Q, axis=2)
-        self._extract_policy_from_q()
-        
-        return rewards_per_episode
+    # Q-learning hyperparameters
+    alpha = 0.3          # learning rate
+    gamma = 0.95         # discount factor
+    max_steps = grid_size * grid_size * 2  # Scale max steps with grid size
+    eps_start, eps_end = 1.0, 0.05
     
-    def test_with_builtin_env(self, env_name="FrozenLake-v1"):
-        """Example using built-in gymnasium environment"""
-        print(f"\nTesting with built-in Gymnasium environment: {env_name}")
-        
-        # Create built-in environment
-        builtin_env = gym.make(env_name, is_slippery=False)
-        
-        # Simple Q-learning on built-in environment
-        q_table = np.zeros((builtin_env.observation_space.n, builtin_env.action_space.n))
-        
-        episodes = 1000
-        alpha = 0.1
-        epsilon = 0.1
-        
-        rewards = []
-        
-        for episode in range(episodes):
-            state, _ = builtin_env.reset()
-            total_reward = 0
-            
-            for _ in range(100):  # Max steps per episode
-                if np.random.random() < epsilon:
-                    action = builtin_env.action_space.sample()
-                else:
-                    action = np.argmax(q_table[state, :])
-                
-                next_state, reward, terminated, truncated, _ = builtin_env.step(action)
-                
-                # Q-learning update
-                if terminated or truncated:
-                    target = reward
-                else:
-                    target = reward + self.gamma * np.max(q_table[next_state, :])
-                
-                q_table[state, action] += alpha * (target - q_table[state, action])
-                
-                total_reward += reward
-                
-                if terminated or truncated:
-                    break
-                    
-                state = next_state
-            
-            rewards.append(total_reward)
-            
-            if episode % 200 == 0:
-                avg_reward = np.mean(rewards[-100:])
-                print(f"  Episode {episode}: Avg Reward = {avg_reward:.3f}")
-        
-        builtin_env.close()
-        return rewards
+    def epsilon_at(ep):
+        # linear decay
+        return eps_end + (eps_start - eps_end) * max(0, (episodes - ep) / episodes)
     
-    def _extract_policy_from_q(self):
-        """Extract policy from Q-values"""
-        for i in range(self.grid_size):
-            for j in range(self.grid_size):
-                self.policy[i, j] = np.argmax(self.Q[i, j, :])
+    # Q-table
+    Q = np.zeros((env.observation_space.n, env.action_space.n))
+    rng = np.random.default_rng(0)
     
-    def visualize_results(self):
-        """Visualize value function and policy"""
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    # Determine snapshot episodes based on total episodes
+    snapshot_episodes = [1, max(1, episodes // 20), max(1, episodes // 4), episodes]
+    snapshot_episodes = sorted(list(set(snapshot_episodes)))  # Remove duplicates and sort
+    
+    # Training
+    for ep in range(1, episodes + 1):
+        state, _ = env.reset()
+        eps = epsilon_at(ep)
         
-        # Value function
-        sns.heatmap(self.V, annot=True, fmt='.2f', cmap='viridis', ax=ax1)
-        ax1.set_title('Value Function (Gymnasium)')
-        ax1.set_ylabel('Row')
-        ax1.set_xlabel('Column')
+        for t in range(max_steps):
+            # Epsilon-greedy action selection
+            if rng.random() < eps:
+                action = env.action_space.sample()
+            else:
+                action = int(np.argmax(Q[state]))
+            
+            # Take action
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            
+            # Q-learning update rule
+            if terminated:
+                td_target = reward
+            else:
+                td_target = reward + gamma * np.max(Q[next_state])
+            
+            td_error = td_target - Q[state, action]
+            Q[state, action] += alpha * td_error
+            
+            state = next_state
+            
+            if terminated or truncated:
+                break
         
-        # Policy
-        arrows = ['↑', '→', '↓', '←']
-        im = ax2.imshow(self.V, cmap='viridis', alpha=0.3)
-        
-        for i in range(self.grid_size):
-            for j in range(self.grid_size):
-                if (i, j) in [(0, 1), (0, 3)]:  # Goal states
-                    ax2.text(j, i, 'GOAL', ha='center', va='center', 
-                           fontweight='bold', color='red')
-                else:
-                    ax2.text(j, i, arrows[self.policy[i, j]], 
-                           ha='center', va='center', fontsize=16)
-        
-        ax2.set_xlim(-0.5, self.grid_size - 0.5)
-        ax2.set_ylim(-0.5, self.grid_size - 0.5)
-        ax2.set_title('Policy (Gymnasium)')
-        ax2.set_xlabel('Column')
-        ax2.set_ylabel('Row')
-        
-        plt.tight_layout()
-        plt.show()
+        # Print snapshots
+        if ep in snapshot_episodes:
+            print(f"\nQ-table after episode {ep} (Grid size: {grid_size}x{grid_size}):")
+            for r in range(env.grid_size):
+                row_vals = []
+                for c in range(env.grid_size):
+                    idx = env.state_to_idx((r, c))
+                    row_vals.append(np.round(np.max(Q[idx]), 2))
+                print(row_vals)
+    
+    return env, Q
 
-def test_gymnasium_integration():
-    """Test the gymnasium integration"""
-    print("=== Testing GridWorld with Gymnasium ===\n")
+def plot_policy_gymnasium(env, Q):
+    """Plot greedy policy using gymnasium environment"""
+    # Scale figure size based on grid size
+    fig_size = min(10, max(5, env.grid_size))
+    fig, ax = plt.subplots(figsize=(fig_size, fig_size))
     
-    # Create custom gymnasium environment
-    env = GridWorldEnv(grid_size=5, gamma=0.9)
+    # Grid lines
+    for x in range(env.grid_size + 1):
+        ax.plot([x, x], [0, env.grid_size], color='black')
+    for y in range(env.grid_size + 1):
+        ax.plot([0, env.grid_size], [y, y], color='black')
     
-    # Test basic environment functionality
-    print("Testing environment interface:")
-    state, _ = env.reset()
-    print(f"Initial state: {state}")
+    # Draw arrows for best actions
+    for r in range(env.grid_size):
+        for c in range(env.grid_size):
+            if (r, c) == env.goal:
+                continue
+                
+            state_idx = env.state_to_idx((r, c))
+            best_action = int(np.argmax(Q[state_idx]))
+            dr, dc = env.a2delta[best_action]
+            
+            x, y = c + 0.5, env.grid_size - r - 0.5
+            
+            # Scale arrow size based on grid size
+            arrow_scale = min(0.3, max(0.1, 0.8 / env.grid_size))
+            ax.annotate('', xy=(x + arrow_scale*dc, y - arrow_scale*dr),
+                       xytext=(x - arrow_scale*dc, y + arrow_scale*dr),
+                       arrowprops=dict(arrowstyle='->', lw=2))
+    
+    # Mark start & goal with scaled font
+    font_size = max(10, min(16, 100 // env.grid_size))
+    start_x, start_y = env.start[1] + 0.5, env.grid_size - env.start[0] - 0.8
+    goal_x, goal_y = env.goal[1] + 0.5, env.grid_size - env.goal[0] - 0.8
+    
+    ax.text(start_x, start_y, "S", ha='center', va='center', 
+           fontsize=font_size, fontweight='bold', color='blue')
+    ax.text(goal_x, goal_y, "G", ha='center', va='center', 
+           fontsize=font_size, fontweight='bold', color='red')
+    
+    ax.set_xlim(0, env.grid_size)
+    ax.set_ylim(0, env.grid_size)
+    ax.set_aspect('equal')
+    ax.set_title(f"Learned Policy Arrows (Q-learning {env.grid_size}x{env.grid_size} Grid)", 
+                fontsize=font_size)
+    plt.tight_layout()
+    plt.show()
+
+def test_environment(grid_size=4):
+    """Test the gymnasium environment with configurable grid size"""
+    print(f"=== Testing Gymnasium GridWorld Environment ({grid_size}x{grid_size}) ===\n")
+    
+    env = GridWorldEnv(grid_size=grid_size)
+    
+    # Test environment interface
+    print(f"Grid size: {grid_size}x{grid_size}")
     print(f"Action space: {env.action_space}")
     print(f"Observation space: {env.observation_space}")
+    print(f"Start state: {env.start}")
+    print(f"Goal state: {env.goal}")
     
-    # Test a few steps
-    for i in range(3):
-        action = env.action_space.sample()
-        state, reward, terminated, truncated, info = env.step(action)
-        print(f"Step {i+1}: action={action}, state={state}, reward={reward}")
-        if terminated:
-            break
+    # Test a few episodes
+    for episode in range(2):
+        print(f"\nEpisode {episode + 1}:")
+        state, _ = env.reset()
+        print(f"Initial state index: {state} -> {env.idx_to_state(state)}")
+        
+        for step in range(min(15, grid_size * 2)):  # Limit steps for large grids
+            action = env.action_space.sample()
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            
+            print(f"  Step {step}: action={action}({env.actions[action]}), "
+                  f"next_state={next_state}({env.idx_to_state(next_state)}), "
+                  f"reward={reward}")
+            
+            if terminated:
+                print("  Episode terminated - reached goal!")
+                break
     
-    print("\n" + "="*50 + "\n")
+    env.close()
+
+def run_experiment(grid_size, episodes=200):
+    """Run complete experiment for a given grid size"""
+    print(f"\n{'='*20} GRID SIZE {grid_size}x{grid_size} {'='*20}")
     
-    # Train agent
-    agent = GymnasiumRLAgent(env)
-    rewards = agent.q_learning(episodes=10000)
+    # Test the environment
+    test_environment(grid_size)
     
-    # Visualize results
-    agent.visualize_results()
+    print(f"\n{'-'*60}")
     
-    # Plot learning curve
-    plt.figure(figsize=(10, 6))
-    window = 50
-    moving_avg = np.convolve(rewards, np.ones(window)/window, mode='valid')
-    plt.plot(moving_avg)
-    plt.title('Q-Learning with Gymnasium: Learning Curve')
-    plt.xlabel('Episode')
-    plt.ylabel('Average Reward')
-    plt.grid(True)
-    plt.show()
+    # Train the agent
+    print(f"Training Q-learning agent on {grid_size}x{grid_size} grid...")
+    env, Q = train_q_learning_gymnasium(grid_size, episodes)
     
-    # Test with built-in environment
-    agent.test_with_builtin_env("FrozenLake-v1")
+    # Plot the learned policy
+    plot_policy_gymnasium(env, Q)
     
-    return env, agent
+    # Close environment
+    env.close()
+    
+    return env, Q
 
 if __name__ == "__main__":
-    # You would need to install gymnasium first:
-    # pip install gymnasium
+    # Test different grid sizes
+    grid_sizes = [4]
     
-    env, agent = test_gymnasium_integration()
+    # Run experiments for different grid sizes
+    for grid_size in grid_sizes:
+        # Scale episodes based on grid complexity
+        episodes = max(100, grid_size * grid_size * 5)
+        run_experiment(grid_size, episodes)
+        print("\n" + "="*80 + "\n")
