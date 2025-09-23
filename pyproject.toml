@@ -16,7 +16,8 @@ dependencies = [
   "stable-baselines3",
   "gymnasium",
   "faiss-cpu",
-  "dotenv"
+  "dotenv",
+  "matplotlib"
 ]
 
 [tool.pytest.ini_options]
