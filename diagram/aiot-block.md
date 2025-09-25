@@ -128,6 +128,15 @@ flowchart TD
   A_PEER -->|peer review| HUMAN
   A_ESC -->|escalation| HUMAN
   A_FLAG -->|flagged items| OUTPUT
+  
+  %% Peer Review Decision Flow
+  HUMAN -.->|review OK| A_MON
+  HUMAN -.->|review NOT OK| A_ESC
+  HUMAN -.->|uncertain| A_INC
+  
+  %% Dashboard Display Flows
+  A_ESC -->|escalated alerts| OUTPUT
+  A_MON -.->|status updates| OUTPUT
 
   %% Enhanced Style Definitions
   classDef sensor fill:#E8F6F3,stroke:#16A085,stroke-width:2px,color:#0E4B99
