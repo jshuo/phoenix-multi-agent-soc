@@ -12,14 +12,13 @@ This document describes an AIoT-based monitoring platform tailored for supply‑
 ## Logistics Operations Monitoring as a Service (MaaS)
 
 - Primary focus is physical and operational telemetry (temperature, geolocation, battery percentage) and asset health, not cyber threat hunting.
-- Actions (increase sampling, calibrate, peer check, escalate to operations) address data quality, asset maintenance, and operational continuity rather than malware, network intrusions, or forensics.
+- Actions (increase sampling, calibrate, peer check, flag, escalate to operations) address data quality and operational continuity rather than malware, network intrusions, or forensics.
 - The RL decision engine and multi‑agent orchestration automate operational workflows and triage; human‑in‑the‑loop handles peer review and escalations.
 
 
 ## Key Components (summary)
 
 - Data Ingestion: IoT sensors and Kalman filters for denoising and state estimation. The platform collects per-asset telemetry and derived quality/health metrics, for example:
-  - `nis99_rate`, `nis95_rate` — signal/measurement rate indicators used for near-instant reliability scoring
   - `temp_sla_violation`, `temp_jump_rate` — temperature SLA violations and sudden temperature changes
   - `press_residual_proxy`, `pressure_jump_rate` — pressure residual proxies and frequency of pressure jumps
   - `route_corridor_dev_km` — deviation from planned route in kilometers (location provided by router)
@@ -29,7 +28,7 @@ This document describes an AIoT-based monitoring platform tailored for supply‑
   - `router_location_quality` — location accuracy and update frequency from router
 - Processing Pipeline: feature engineering, anomaly scoring (e.g., Isolation Forest), and context fusion.
 - Decision Engine: RL-based action selection with safety overrides and policy constraints.
-- Action & Orchestration: automated actions (monitor, sample, calibrate, peer check, escalate, flag) coordinated by agents with human oversight.
+- Action & Orchestration: automated actions (monitor, increase sampling, calibrate, peer check, escalate, flag) coordinated by agents with human oversight.
 - Operations Dashboard: alerts, tickets, and visualization tailored to logistics operators.
 
 ## Data Flow
@@ -76,7 +75,7 @@ flowchart TD
   end
   
   %% Context Integration
-  CONTEXT["📝 Context Fusion<br/>Cargo, SLA, Battery"]:::context
+  CONTEXT["📝 Context Fusion<br/>Cargo Type, SLA, Battery"]:::context
   
   %% Decision Layer
   subgraph DECISION["🧠 RL Decision Engine"]
