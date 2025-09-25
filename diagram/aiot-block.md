@@ -7,23 +7,30 @@ This document describes an AIoT-based monitoring platform tailored for supply‑
 ## Purpose and Scope
 
 - Purpose: provide continuous visibility, anomaly detection, and automated operational responses for assets in transit (cargo, vehicles, sensors).
-- Scope: telemetry processing, feature extraction, ML anomaly scoring, contextual fusion (cargo status, SLA, battery), decision automation, and human escalation. This is an operational monitoring and logistics command capability, not a traditional cybersecurity Security Operations Center (SOC).
+- Scope: telemetry processing, feature extraction, ML anomaly scoring, contextual fusion (cargo status, SLA, battery), decision automation, and human escalation. This is an operational monitoring and logistics command capability.
 
-## Why this is Monitoring as a Service (MaaS), not a traditional SOC
+## Logistics Operations Monitoring as a Service (MaaS)
 
-- Primary focus is physical and operational telemetry (temperature, GPS, QoS) and asset health, not cyber threat hunting.
+- Primary focus is physical and operational telemetry (temperature, geolocation, battery percentage) and asset health, not cyber threat hunting.
 - Actions (increase sampling, calibrate, peer check, escalate to operations) address data quality, asset maintenance, and operational continuity rather than malware, network intrusions, or forensics.
 - The RL decision engine and multi‑agent orchestration automate operational workflows and triage; human‑in‑the‑loop handles peer review and escalations.
 
-Recommendation: use names like “Logistics Operations Center (LOC)”, “Supply Chain Command Center”, or “Supply Chain Monitoring as a Service” to set correct expectations for customers.
 
 ## Key Components (summary)
 
-- Data Ingestion: IoT sensors and Kalman filters for denoising and state estimation.
+- Data Ingestion: IoT sensors and Kalman filters for denoising and state estimation. The platform collects per-asset telemetry and derived quality/health metrics, for example:
+  - `nis99_rate`, `nis95_rate` — signal/measurement rate indicators used for near-instant reliability scoring
+  - `temp_sla_violation`, `temp_jump_rate` — temperature SLA violations and sudden temperature changes
+  - `press_residual_proxy`, `pressure_jump_rate` — pressure residual proxies and frequency of pressure jumps
+  - `route_corridor_dev_km` — deviation from planned route in kilometers (location provided by router)
+  - `speed_spike_rate`, `accel_spike_rate` — sudden speed or acceleration events that may indicate incidents
+  - `ts_jitter_sec`, `non_monotonic_ts_rate`, `missing_frac` — timestamp jitter, out-of-order timestamps, and fraction of missing samples (data quality indicators)
+  - `battery_pct`, `cal_age_hours` — battery percentage and sensor calibration age (device health)
+  - `router_location_quality` — location accuracy and update frequency from router
 - Processing Pipeline: feature engineering, anomaly scoring (e.g., Isolation Forest), and context fusion.
 - Decision Engine: RL-based action selection with safety overrides and policy constraints.
 - Action & Orchestration: automated actions (monitor, sample, calibrate, peer check, escalate, flag) coordinated by agents with human oversight.
-- Operations Dashboard: alerts, tickets, and visualization tailored to logistics operators (renamed from SOC Dashboard).
+- Operations Dashboard: alerts, tickets, and visualization tailored to logistics operators.
 
 ## Data Flow
 
@@ -31,7 +38,7 @@ Recommendation: use names like “Logistics Operations Center (LOC)”, “Suppl
 2. **Analysis**: Feature engineering → ML anomaly detection → Context integration
 3. **Decision**: RL decision engine (with safety overrides) selects appropriate actions
 4. **Execution**: Multi-agent system executes actions and coordinates responses
-5. **Output**: Results displayed on SOC dashboard
+5. **Output**: Results displayed on the Operations Dashboard
 6. **Learning**: System continuously learns from actions to improve future decisions
 
 ## Key Features
@@ -42,7 +49,7 @@ Recommendation: use names like “Logistics Operations Center (LOC)”, “Suppl
 - **Adaptive Learning**: RL training loop enables the system to improve over time
 - **Multi-Modal Integration**: Combines sensor data with contextual business information
 
-This architecture represents a modern approach to IoT security monitoring that balances automation with human oversight, using advanced AI techniques while maintaining safety and explainability through multi-agent coordination.
+This architecture represents a modern approach to IoT operational monitoring that balances automation with human oversight, using advanced AI techniques while maintaining safety and explainability through multi-agent coordination.
 
 ## Architecture Diagram
 
@@ -52,7 +59,7 @@ flowchart TD
   %% Data Ingestion Layer
   subgraph INGESTION["📡 Data Ingestion"]
     direction TB
-    SENSORS["🌡️ IoT Sensors<br/>Temp, GPS, QoS"]:::sensor
+    SENSORS["🌡️ IoT Sensors<br/>Temp, Pressure, battery percentage"]:::sensor
     FILTER["🔄 Kalman Filters<br/>Signal Processing"]:::filter
     SENSORS --> FILTER
   end
@@ -99,7 +106,7 @@ flowchart TD
   end
   
   %% Output Dashboard
-  OUTPUT["📊 SOC Dashboard<br/>Alerts & Tickets"]:::output
+  OUTPUT["📊 Operations Dashboard<br/>Alerts & Tickets"]:::output
   
   %% Training Loop (Background)
   TRAIN["🎓 RL Training<br/>Offline Learning"]:::train
@@ -138,3 +145,4 @@ flowchart TD
   classDef output fill:#E0F2F1,stroke:#00695C,stroke-width:3px,color:#004D40,font-weight:bold
   classDef train fill:#FFEBEE,stroke:#E57373,stroke-width:2px,stroke-dasharray: 5 5,color:#C62828
   classDef actionItem fill:#F9FBE7,stroke:#827717,stroke-width:1px,color:#33691E
+```
