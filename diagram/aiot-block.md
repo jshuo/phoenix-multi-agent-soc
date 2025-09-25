@@ -1,0 +1,155 @@
+
+# AIoT Multi-Agent Security Operations Center (SOC) Architecture
+
+## System Overview
+
+This diagram illustrates a sophisticated AIoT (Artificial Intelligence of Things) based security monitoring and response system that combines IoT sensors, machine learning, reinforcement learning, and multi-agent coordination for automated threat detection and response.
+
+## Key Components
+
+### 📡 Data Ingestion Layer
+- **IoT Sensors**: Collects telemetry data including temperature, GPS location, and Quality of Service (QoS) metrics
+- **Kalman Filters**: Performs signal processing and noise reduction on the raw sensor data
+
+### 📊 Processing Pipeline
+- **Feature Engineering**: Extracts meaningful features, residuals, and metrics from the filtered sensor data
+- **ML Detection**: Uses an Isolation Forest algorithm for anomaly scoring and state classification (transitioning from Normal to Critical states)
+- **Context Fusion**: Integrates additional contextual information like cargo status, Service Level Agreements (SLA), and battery levels
+
+### 🧠 Decision Engine
+- **Deep Q-Network (DQN)**: A reinforcement learning model that selects optimal actions based on the current state
+- **Safety Override**: Implements safety rules and policies that can override AI decisions when necessary
+
+### 🎬 Action Space
+The system can take six different actions:
+- **Monitor**: Continue standard monitoring
+- **Increase Sampling**: Boost data collection frequency
+- **Peer Check**: Request peer validation
+- **Calibrate**: Adjust sensor calibration
+- **Escalate**: Raise alert level to human operators
+- **Flag**: Mark items for further investigation
+
+### 🤖 Multi-Agent System
+- **Anomaly Agent**: Performs root cause analysis of detected anomalies
+- **Decision Agent**: Handles policy reasoning and decision-making
+- **Human-in-Loop**: Enables human oversight for peer review and escalated cases
+
+### 📊 Output & Training
+- **SOC Dashboard**: Displays alerts and generates tickets for security operations
+- **RL Training**: Continuous offline learning that updates the decision model based on accumulated experience
+
+## Data Flow
+
+1. **Ingestion**: IoT sensors collect data → Kalman filters process signals
+2. **Analysis**: Feature engineering → ML anomaly detection → Context integration
+3. **Decision**: RL decision engine (with safety overrides) selects appropriate actions
+4. **Execution**: Multi-agent system executes actions and coordinates responses
+5. **Output**: Results displayed on SOC dashboard
+6. **Learning**: System continuously learns from actions to improve future decisions
+
+## Key Features
+
+- **Real-time Processing**: Continuous monitoring and immediate response capabilities
+- **Safety-First Design**: Safety overrides ensure critical decisions aren't fully automated
+- **Human Oversight**: Human-in-the-loop design for escalations and peer reviews
+- **Adaptive Learning**: RL training loop enables the system to improve over time
+- **Multi-Modal Integration**: Combines sensor data with contextual business information
+
+This architecture represents a modern approach to IoT security monitoring that balances automation with human oversight, using advanced AI techniques while maintaining safety and explainability through multi-agent coordination.
+
+## Architecture Diagram
+
+
+```mermaid
+flowchart TD
+  %% Data Ingestion Layer
+  subgraph INGESTION["📡 Data Ingestion"]
+    direction TB
+    SENSORS["🌡️ IoT Sensors<br/>Temp, GPS, QoS"]:::sensor
+    FILTER["🔄 Kalman Filters<br/>Signal Processing"]:::filter
+    SENSORS --> FILTER
+  end
+  
+  %% Feature Processing
+  FEATURES["📋 Feature Engineering<br/>Residuals & Metrics"]:::feature
+  
+  %% AI/ML Layer  
+  subgraph ML["🤖 ML Detection"]
+    direction LR
+    ANOMALY["🌲 Isolation Forest<br/>Anomaly Scoring"]:::ml
+    STATES["🎯 State Classification<br/>Normal → Critical"]:::states
+    ANOMALY --> STATES
+  end
+  
+  %% Context Integration
+  CONTEXT["📝 Context Fusion<br/>Cargo, SLA, Battery"]:::context
+  
+  %% Decision Layer
+  subgraph DECISION["🧠 RL Decision Engine"]
+    direction TB
+    DQN["🔗 Deep Q-Network<br/>Action Selection"]:::neural
+    SAFETY["🛡️ Safety Override<br/>Rules & Policies"]:::safety
+    DQN --> SAFETY
+  end
+  
+  %% Action Execution
+  subgraph ACTIONS["🎬 Action Space"]
+    direction TB
+    A_MON["👀 Monitor"]:::actionItem
+    A_INC["📈 Increase Sampling"]:::actionItem
+    A_PEER["👥 Peer Check"]:::actionItem
+    A_CAL["⚙️ Calibrate"]:::actionItem
+    A_ESC["🚨 Escalate"]:::actionItem
+    A_FLAG["🏳️ Flag"]:::actionItem
+  end
+  
+  %% Multi-Agent Orchestration
+  subgraph AGENTS["🤖 Multi-Agent System"]
+    direction TB
+    DETECT["🕵️ Anomaly Agent<br/>Root Cause Analysis"]:::agent
+    DECIDE["🧠 Decision Agent<br/>Policy Reasoning"]:::agent
+    HUMAN["👤 Human-in-Loop<br/>Peer Review"]:::human
+  end
+  
+  %% Output Dashboard
+  OUTPUT["📊 SOC Dashboard<br/>Alerts & Tickets"]:::output
+  
+  %% Training Loop (Background)
+  TRAIN["🎓 RL Training<br/>Offline Learning"]:::train
+  
+  %% Main Flow
+  INGESTION --> FEATURES
+  FEATURES --> ML
+  ML --> CONTEXT
+  CONTEXT --> DECISION
+  DECISION --> ACTIONS
+  ACTIONS --> AGENTS
+  AGENTS --> OUTPUT
+  
+  %% Training Feedback Loop
+  ACTIONS -.->|experience| TRAIN
+  TRAIN -.->|updated model| DECISION
+  
+  %% Conditional Flows
+  CONTEXT -->|high risk| SAFETY
+  A_PEER -->|peer review| HUMAN
+  A_ESC -->|escalation| HUMAN
+  A_FLAG -->|flagged items| OUTPUT
+
+  %% Enhanced Style Definitions
+  classDef sensor fill:#E8F6F3,stroke:#16A085,stroke-width:2px,color:#0E4B99
+  classDef filter fill:#EBF5FB,stroke:#3498DB,stroke-width:2px,color:#1B4F72
+  classDef feature fill:#FDF2E9,stroke:#E67E22,stroke-width:2px,color:#B7611A
+  classDef ml fill:#F4ECF7,stroke:#8E44AD,stroke-width:2px,color:#6C3483
+  classDef states fill:#FEF9E7,stroke:#F39C12,stroke-width:2px,color:#B7950B
+  classDef context fill:#F8F9FA,stroke:#6C757D,stroke-width:2px,color:#495057
+  classDef neural fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#4A148C
+  classDef safety fill:#FFEBEE,stroke:#D32F2F,stroke-width:3px,color:#B71C1C,font-weight:bold
+  classDef action fill:#F1F8E9,stroke:#689F38,stroke-width:2px,color:#33691E
+  classDef agent fill:#E8EAF6,stroke:#3F51B5,stroke-width:2px,color:#1A237E
+  classDef human fill:#FFF3E0,stroke:#FF9800,stroke-width:2px,color:#E65100
+  classDef output fill:#E0F2F1,stroke:#00695C,stroke-width:3px,color:#004D40,font-weight:bold
+  classDef train fill:#FFEBEE,stroke:#E57373,stroke-width:2px,stroke-dasharray: 5 5,color:#C62828
+  classDef actionItem fill:#F9FBE7,stroke:#827717,stroke-width:1px,color:#33691E
+
+```
