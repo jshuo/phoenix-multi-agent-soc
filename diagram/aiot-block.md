@@ -1,42 +1,29 @@
-
-# AIoT Multi-Agent Security Operations Center (SOC) Architecture
+# AIoT Multi-Agent Logistics Monitoring Platform (Supply Chain Monitoring as a Service)
 
 ## System Overview
 
-This diagram illustrates a sophisticated AIoT (Artificial Intelligence of Things) based security monitoring and response system that combines IoT sensors, machine learning, reinforcement learning, and multi-agent coordination for automated threat detection and response.
+This document describes an AIoT-based monitoring platform tailored for supply‑chain and logistics operations. It focuses on real‑time telemetry, operational anomaly detection, automated orchestration, and human oversight — delivered as Monitoring as a Service (MaaS) for logistics customers.
 
-## Key Components
+## Purpose and Scope
 
-### 📡 Data Ingestion Layer
-- **IoT Sensors**: Collects telemetry data including temperature, GPS location, and Quality of Service (QoS) metrics
-- **Kalman Filters**: Performs signal processing and noise reduction on the raw sensor data
+- Purpose: provide continuous visibility, anomaly detection, and automated operational responses for assets in transit (cargo, vehicles, sensors).
+- Scope: telemetry processing, feature extraction, ML anomaly scoring, contextual fusion (cargo status, SLA, battery), decision automation, and human escalation. This is an operational monitoring and logistics command capability, not a traditional cybersecurity Security Operations Center (SOC).
 
-### 📊 Processing Pipeline
-- **Feature Engineering**: Extracts meaningful features, residuals, and metrics from the filtered sensor data
-- **ML Detection**: Uses an Isolation Forest algorithm for anomaly scoring and state classification (transitioning from Normal to Critical states)
-- **Context Fusion**: Integrates additional contextual information like cargo status, Service Level Agreements (SLA), and battery levels
+## Why this is Monitoring as a Service (MaaS), not a traditional SOC
 
-### 🧠 Decision Engine
-- **Deep Q-Network (DQN)**: A reinforcement learning model that selects optimal actions based on the current state
-- **Safety Override**: Implements safety rules and policies that can override AI decisions when necessary
+- Primary focus is physical and operational telemetry (temperature, GPS, QoS) and asset health, not cyber threat hunting.
+- Actions (increase sampling, calibrate, peer check, escalate to operations) address data quality, asset maintenance, and operational continuity rather than malware, network intrusions, or forensics.
+- The RL decision engine and multi‑agent orchestration automate operational workflows and triage; human‑in‑the‑loop handles peer review and escalations.
 
-### 🎬 Action Space
-The system can take six different actions:
-- **Monitor**: Continue standard monitoring
-- **Increase Sampling**: Boost data collection frequency
-- **Peer Check**: Request peer validation
-- **Calibrate**: Adjust sensor calibration
-- **Escalate**: Raise alert level to human operators
-- **Flag**: Mark items for further investigation
+Recommendation: use names like “Logistics Operations Center (LOC)”, “Supply Chain Command Center”, or “Supply Chain Monitoring as a Service” to set correct expectations for customers.
 
-### 🤖 Multi-Agent System
-- **Anomaly Agent**: Performs root cause analysis of detected anomalies
-- **Decision Agent**: Handles policy reasoning and decision-making
-- **Human-in-Loop**: Enables human oversight for peer review and escalated cases
+## Key Components (summary)
 
-### 📊 Output & Training
-- **SOC Dashboard**: Displays alerts and generates tickets for security operations
-- **RL Training**: Continuous offline learning that updates the decision model based on accumulated experience
+- Data Ingestion: IoT sensors and Kalman filters for denoising and state estimation.
+- Processing Pipeline: feature engineering, anomaly scoring (e.g., Isolation Forest), and context fusion.
+- Decision Engine: RL-based action selection with safety overrides and policy constraints.
+- Action & Orchestration: automated actions (monitor, sample, calibrate, peer check, escalate, flag) coordinated by agents with human oversight.
+- Operations Dashboard: alerts, tickets, and visualization tailored to logistics operators (renamed from SOC Dashboard).
 
 ## Data Flow
 
@@ -151,5 +138,3 @@ flowchart TD
   classDef output fill:#E0F2F1,stroke:#00695C,stroke-width:3px,color:#004D40,font-weight:bold
   classDef train fill:#FFEBEE,stroke:#E57373,stroke-width:2px,stroke-dasharray: 5 5,color:#C62828
   classDef actionItem fill:#F9FBE7,stroke:#827717,stroke-width:1px,color:#33691E
-
-```
