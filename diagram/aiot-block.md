@@ -7,7 +7,7 @@ This document describes an AIoT-based monitoring platform tailored for supply‑
 ## Purpose and Scope
 
 - Purpose: provide continuous visibility, anomaly detection, and automated operational responses for assets in transit.
-- Scope: telemetry processing, feature extraction, ML anomaly scoring, contextual fusion (cargo type, SLA, battery), decision automation, and human escalation. This is an operational monitoring and logistics command capability.
+- Scope: telemetry processing, feature extraction, ML anomaly scoring, contextual fusion (cargo type, forwarder quality), decision automation, and human escalation. This is an operational monitoring and logistics command capability.
 
 ## Logistics Operations Monitoring as a Service (MaaS)
 
@@ -27,14 +27,24 @@ This document describes an AIoT-based monitoring platform tailored for supply‑
   - `battery_pct`, `cal_age_hours` — battery percentage and sensor calibration age (device health)
   - `router_location_quality` — location accuracy and update frequency from router
 - Processing Pipeline: feature engineering, anomaly scoring (e.g., Isolation Forest), and context fusion.
+- Forwarder Quality Assessment: continuous evaluation of freight forwarder performance per forwarder × lane × cargo combination, with quality bucketization (UNK/LOW/MED/HIGH) feeding into decision logic.
 - Decision Engine: RL-based action selection with safety overrides and policy constraints.
 - Action & Orchestration: automated actions (monitor, increase sampling, calibrate, peer check, escalate, flag) coordinated by agents with human oversight.
 - Operations Dashboard: alerts, tickets, and visualization tailored to logistics operators.
 
+## Context Integration
+
+As shown in the architecture diagram, the contextual fusion layer feeds additional context into the RL state builder:
+
+- **Cargo Type**: Influences decision thresholds (perishable, electronics, hazardous, bulk)
+- **Forwarder Quality**: UNK/LOW/MED/HIGH quality buckets affecting trust levels
+
+This context helps the DQN make more informed decisions based on business logic and operational constraints, while the core state space focuses on the technical telemetry and anomaly detection features.
+
 ## Data Flow
 
 1. **Ingestion**: IoT sensors collect data → Kalman filters process signals
-2. **Analysis**: Feature engineering → ML anomaly detection → Context integration
+2. **Analysis**: Feature engineering → ML anomaly detection → Context integration (cargo type, forwarder quality)
 3. **Decision**: RL decision engine (with safety overrides) selects appropriate actions
 4. **Execution**: Multi-agent system executes actions and coordinates responses
 5. **Output**: Results displayed on the Operations Dashboard
@@ -92,6 +102,32 @@ Cargo type information flows through Context Fusion and influences decisions at 
 - Temperature-sensitive cargo → automatic Increase Sampling on temperature anomalies
 - Fragile cargo → immediate Calibrate action on pressure/vibration issues
 
+## Freight Forwarder Quality Integration
+
+The system maintains continuous assessment of freight forwarder performance through quality snapshots that track performance across multiple dimensions:
+
+### Quality Snapshot Metrics
+- **Per-forwarder performance**: Historical reliability, on-time delivery, damage rates
+- **Lane-specific performance**: Route efficiency, typical transit times, incident frequency
+- **Cargo-type expertise**: Specialized handling capabilities, temperature control effectiveness
+
+### Quality Bucketization
+Forwarder quality is categorized into discrete levels:
+- **UNK**: Unknown or insufficient data for assessment
+- **LOW**: Below-average performance, frequent issues or delays
+- **MED**: Standard performance meeting basic requirements
+- **HIGH**: Excellent performance, reliable and efficient operations
+
+### Decision Engine Impact
+- **LOW quality forwarders**: More aggressive monitoring, faster escalation thresholds
+- **HIGH quality forwarders**: Extended monitoring intervals, higher anomaly thresholds
+- **UNK quality forwarders**: Baseline monitoring with moderate sensitivity
+
+### Continuous Learning Loop
+- Outcome logging feeds back into forwarder quality assessments
+- KPI updates refine quality bucketization over time
+- Reward signals help adjust forwarder performance rankings
+
 ## Architecture Diagram
 
 
@@ -116,14 +152,24 @@ flowchart TD
     ANOMALY --> STATES
   end
   
+  %% Forwarder Quality Assessment
+  subgraph FORWARDER["🚚 Forwarder Quality"]
+    direction TB
+    SNAPSHOT["📊 Quality Snapshot<br/>per forwarder × lane × cargo"]:::forwarder
+    BUCKET["🗂️ Bucketizer<br/>UNK/LOW/MED/HIGH"]:::bucket
+    SNAPSHOT --> BUCKET
+  end
+  
   %% Context Integration
-  CONTEXT["📝 Context Fusion<br/>Cargo Type, SLA, Battery"]:::context
+  CONTEXT["📝 Context Fusion<br/>Cargo Type, Forwarder Quality"]:::context
   
   %% Decision Layer
   subgraph DECISION["🧠 RL Decision Engine"]
     direction TB
+    STATE["🔗 State Builder<br/>Context Integration"]:::state
     DQN["🔗 Deep Q-Network<br/>Action Selection"]:::neural
     SAFETY["🛡️ Safety Override<br/>Rules & Policies"]:::safety
+    STATE --> DQN
     DQN --> SAFETY
   end
   
@@ -156,7 +202,9 @@ flowchart TD
   INGESTION --> FEATURES
   FEATURES --> ML
   ML --> CONTEXT
-  CONTEXT --> DECISION
+  FORWARDER --> CONTEXT
+  CONTEXT --> STATE
+  STATE --> DECISION
   DECISION --> ACTIONS
   ACTIONS --> AGENTS
   AGENTS --> OUTPUT
@@ -164,6 +212,10 @@ flowchart TD
   %% Training Feedback Loop
   ACTIONS -.->|experience| TRAIN
   TRAIN -.->|updated model| DECISION
+  
+  %% Forwarder Quality Feedback Loop
+  OUTPUT -.->|KPI updates| SNAPSHOT
+  ACTIONS -.->|outcome logging| SNAPSHOT
   
   %% Conditional Flows
   CONTEXT -->|high risk| SAFETY
@@ -187,6 +239,7 @@ flowchart TD
   classDef ml fill:#F4ECF7,stroke:#8E44AD,stroke-width:2px,color:#6C3483
   classDef states fill:#FEF9E7,stroke:#F39C12,stroke-width:2px,color:#B7950B
   classDef context fill:#F8F9FA,stroke:#6C757D,stroke-width:2px,color:#495057
+  classDef state fill:#E1F5FE,stroke:#0277BD,stroke-width:2px,color:#01579B
   classDef neural fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#4A148C
   classDef safety fill:#FFEBEE,stroke:#D32F2F,stroke-width:3px,color:#B71C1C,font-weight:bold
   classDef action fill:#F1F8E9,stroke:#689F38,stroke-width:2px,color:#33691E
@@ -195,4 +248,5 @@ flowchart TD
   classDef output fill:#E0F2F1,stroke:#00695C,stroke-width:3px,color:#004D40,font-weight:bold
   classDef train fill:#FFEBEE,stroke:#E57373,stroke-width:2px,stroke-dasharray: 5 5,color:#C62828
   classDef actionItem fill:#F9FBE7,stroke:#827717,stroke-width:1px,color:#33691E
-```
+  classDef forwarder fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#0D47A1
+  classDef bucket fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#4A148C
