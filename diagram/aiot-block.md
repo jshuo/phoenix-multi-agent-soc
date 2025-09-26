@@ -6,12 +6,12 @@ This document describes an AIoT-based monitoring platform tailored for supply‑
 
 ## Purpose and Scope
 
-- Purpose: provide continuous visibility, anomaly detection, and automated operational responses for assets in transit (cargo, vehicles, sensors).
-- Scope: telemetry processing, feature extraction, ML anomaly scoring, contextual fusion (cargo status, SLA, battery), decision automation, and human escalation. This is an operational monitoring and logistics command capability.
+- Purpose: provide continuous visibility, anomaly detection, and automated operational responses for assets in transit.
+- Scope: telemetry processing, feature extraction, ML anomaly scoring, contextual fusion (cargo type, SLA, battery), decision automation, and human escalation. This is an operational monitoring and logistics command capability.
 
 ## Logistics Operations Monitoring as a Service (MaaS)
 
-- Primary focus is physical and operational telemetry (temperature, geolocation, battery percentage) and asset health, not cyber threat hunting.
+- Primary focus is physical and operational telemetry (temperature, geolocation, battery percentage) and asset health
 - Actions (increase sampling, calibrate, peer check, flag, escalate to operations) address data quality and operational continuity rather than malware, network intrusions, or forensics.
 - The RL decision engine and multi‑agent orchestration automate operational workflows and triage; human‑in‑the‑loop handles peer review and escalations.
 
@@ -49,6 +49,48 @@ This document describes an AIoT-based monitoring platform tailored for supply‑
 - **Multi-Modal Integration**: Combines sensor data with contextual business information
 
 This architecture represents a modern approach to IoT operational monitoring that balances automation with human oversight, using advanced AI techniques while maintaining safety and explainability through multi-agent coordination.
+
+## Peer Review Decision Flows
+
+The diagram shows three key outcomes from human peer review:
+
+1. **Review OK** → **Monitor Action**: When peer review validates the anomaly as a false positive or resolved issue:
+   - Tracker returns to baseline monitoring mode
+   - Trust/confidence score increases for the device
+   - Event labeled as "verified_normal" for training data
+   - Status updates flow to Operations Dashboard for visibility
+
+2. **Review NOT OK** → **Escalate Action**: When peer review confirms a genuine anomaly or operational issue:
+   - High-priority alert generated on Operations Dashboard
+   - Immediate notification to logistics operators and on-call staff
+   - Safety policies may trigger additional protective actions
+   - Event labeled as "verified_anomaly" for model improvement
+
+3. **Review Uncertain** → **Increase Sampling Action**: When peer review needs more data for assessment:
+   - Temporarily boost sensor data collection frequency
+   - Gather additional telemetry for better root cause analysis
+   - Set timeout for human decision with safe defaults
+   - Route to human escalation queue if uncertainty persists
+
+## Cargo Type Integration Scenarios
+
+Cargo type information flows through Context Fusion and influences decisions at multiple points:
+
+### Decision Engine Impact
+- **Perishable goods**: Lower temperature thresholds, faster escalation on temp_sla_violation
+- **Electronics**: Tighter shock/acceleration limits, immediate response to accel_spike_rate
+- **Hazardous materials**: Strictest safety overrides, mandatory human approval for certain actions
+- **Bulk commodities**: Relaxed thresholds, prefer monitoring over costly escalations
+
+### Peer Review Context  
+- Reviewers see cargo type in their assessment interface
+- Cargo-specific checklists and inspection criteria
+- Different escalation priorities based on cargo value and risk
+
+### Action Selection
+- High-value cargo → prefer Escalate over Monitor for uncertain cases
+- Temperature-sensitive cargo → automatic Increase Sampling on temperature anomalies
+- Fragile cargo → immediate Calibrate action on pressure/vibration issues
 
 ## Architecture Diagram
 
