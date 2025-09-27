@@ -36,10 +36,10 @@ This document describes an AIoT-based monitoring platform tailored for supply‑
 
 As shown in the architecture diagram, the contextual fusion layer feeds additional context into the RL state builder:
 
-- **Cargo Type**: Influences decision thresholds (perishable, electronics, hazardous, bulk)
-- **Forwarder Quality**: UNK/LOW/MED/HIGH quality buckets affecting trust levels
+- **Cargo Type**: One-hot encoded vectors representing cargo categories (perishable, electronics, hazardous, bulk) for efficient neural network processing
+- **Forwarder Quality**: One-hot encoded quality vectors (UNK/LOW/MED/HIGH) derived from quality assessments affecting trust levels
 
-This context helps the DQN make more informed decisions based on business logic and operational constraints, while the core state space focuses on the technical telemetry and anomaly detection features.
+This context uses one-hot encoding to help the DQN make more informed decisions based on business logic and operational constraints, while the core state space focuses on the technical telemetry and anomaly detection features.
 
 ## Data Flow
 
@@ -84,23 +84,28 @@ The diagram shows three key outcomes from human peer review:
 
 ## Cargo Type Integration Scenarios
 
-Cargo type information flows through Context Fusion and influences decisions at multiple points:
+Cargo type information is one-hot encoded and flows through Context Fusion to influence decisions at multiple points:
+
+### One-Hot Encoding Structure
+- **Vector format**: [perishable, electronics, hazardous, bulk] with binary values
+- **Examples**: Perishable goods = [1, 0, 0, 0], Electronics = [0, 1, 0, 0]
+- **Mixed cargo**: Multiple bits can be set for hybrid shipments
 
 ### Decision Engine Impact
-- **Perishable goods**: Lower temperature thresholds, faster escalation on temp_sla_violation
-- **Electronics**: Tighter shock/acceleration limits, immediate response to accel_spike_rate
-- **Hazardous materials**: Strictest safety overrides, mandatory human approval for certain actions
-- **Bulk commodities**: Relaxed thresholds, prefer monitoring over costly escalations
+- **Perishable goods [1,0,0,0]**: Lower temperature thresholds, faster escalation on temp_sla_violation
+- **Electronics [0,1,0,0]**: Tighter shock/acceleration limits, immediate response to accel_spike_rate
+- **Hazardous materials [0,0,1,0]**: Strictest safety overrides, mandatory human approval for certain actions
+- **Bulk commodities [0,0,0,1]**: Relaxed thresholds, prefer monitoring over costly escalations
 
 ### Peer Review Context  
-- Reviewers see cargo type in their assessment interface
-- Cargo-specific checklists and inspection criteria
-- Different escalation priorities based on cargo value and risk
+- Reviewers see decoded cargo type information in their assessment interface
+- Cargo-specific checklists and inspection criteria based on one-hot patterns
+- Different escalation priorities based on cargo value and risk profiles
 
 ### Action Selection
-- High-value cargo → prefer Escalate over Monitor for uncertain cases
-- Temperature-sensitive cargo → automatic Increase Sampling on temperature anomalies
-- Fragile cargo → immediate Calibrate action on pressure/vibration issues
+- High-value cargo patterns → prefer Escalate over Monitor for uncertain cases
+- Temperature-sensitive cargo vectors → automatic Increase Sampling on temperature anomalies
+- Fragile cargo encodings → immediate Calibrate action on pressure/vibration issues
 
 ## Freight Forwarder Quality Integration
 
@@ -111,22 +116,24 @@ The system maintains continuous assessment of freight forwarder performance thro
 - **Lane-specific performance**: Route efficiency, typical transit times, incident frequency
 - **Cargo-type expertise**: Specialized handling capabilities, temperature control effectiveness
 
-### Quality Bucketization
-Forwarder quality is categorized into discrete levels:
-- **UNK**: Unknown or insufficient data for assessment
-- **LOW**: Below-average performance, frequent issues or delays
-- **MED**: Standard performance meeting basic requirements
-- **HIGH**: Excellent performance, reliable and efficient operations
+### Quality Bucketization and One-Hot Encoding
+Forwarder quality is categorized and encoded as one-hot vectors:
+- **UNK [1,0,0,0]**: Unknown or insufficient data for assessment
+- **LOW [0,1,0,0]**: Below-average performance, frequent issues or delays
+- **MED [0,0,1,0]**: Standard performance meeting basic requirements
+- **HIGH [0,0,0,1]**: Excellent performance, reliable and efficient operations
 
 ### Decision Engine Impact
-- **LOW quality forwarders**: More aggressive monitoring, faster escalation thresholds
-- **HIGH quality forwarders**: Extended monitoring intervals, higher anomaly thresholds
-- **UNK quality forwarders**: Baseline monitoring with moderate sensitivity
+- **LOW quality [0,1,0,0]**: More aggressive monitoring, faster escalation thresholds
+- **HIGH quality [0,0,0,1]**: Extended monitoring intervals, higher anomaly thresholds
+- **UNK quality [1,0,0,0]**: Baseline monitoring with moderate sensitivity
+- **MED quality [0,0,1,0]**: Standard monitoring protocols with balanced sensitivity
 
-### Continuous Learning Loop
-- Outcome logging feeds back into forwarder quality assessments
-- KPI updates refine quality bucketization over time
-- Reward signals help adjust forwarder performance rankings
+### Continuous Learning Loop with Logging Access
+- **Outcome logging**: Action results and KPIs logged for accessing forwarder quality assessments
+- **Quality snapshot updates**: Historical data feeds back into quality bucketization algorithms
+- **One-hot encoding pipeline**: Quality assessments converted to vectors for RL state integration
+- **Performance tracking**: Continuous logging enables quality trend analysis and forwarder ranking adjustments
 
 ## Architecture Diagram
 
@@ -157,11 +164,16 @@ flowchart TD
     direction TB
     SNAPSHOT["📊 Quality Snapshot<br/>per forwarder × lane × cargo"]:::forwarder
     BUCKET["🗂️ Bucketizer<br/>UNK/LOW/MED/HIGH"]:::bucket
+    ONEHOT_FQ["🔢 One-Hot Encoder<br/>[UNK,LOW,MED,HIGH] vectors"]:::encoder
     SNAPSHOT --> BUCKET
+    BUCKET --> ONEHOT_FQ
   end
   
+  %% Cargo Type Encoding
+  CARGO_ENC["🏷️ Cargo Type<br/>One-Hot Encoder<br/>[perishable,electronics,hazardous,bulk]"]:::encoder
+  
   %% Context Integration
-  CONTEXT["📝 Context Fusion<br/>Cargo Type, Forwarder Quality"]:::context
+  CONTEXT["📝 Context Fusion<br/>One-Hot Encoded Vectors"]:::context
   
   %% Decision Layer
   subgraph DECISION["🧠 RL Decision Engine"]
@@ -202,7 +214,8 @@ flowchart TD
   INGESTION --> FEATURES
   FEATURES --> ML
   ML --> CONTEXT
-  FORWARDER --> CONTEXT
+  ONEHOT_FQ --> CONTEXT
+  CARGO_ENC --> CONTEXT
   CONTEXT --> STATE
   STATE --> DECISION
   DECISION --> ACTIONS
@@ -250,3 +263,4 @@ flowchart TD
   classDef actionItem fill:#F9FBE7,stroke:#827717,stroke-width:1px,color:#33691E
   classDef forwarder fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#0D47A1
   classDef bucket fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,color:#4A148C
+  classDef encoder fill:#FFF8E1,stroke:#F57F17,stroke-width:2px,color:#E65100
