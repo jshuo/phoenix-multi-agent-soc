@@ -316,6 +316,17 @@ function MissionPanel() {
 export default function DefenseAIDashboard() {
   const [isLive, setIsLive] = useState(true);
 
+  // Dev-only smoke checks (lightweight "test cases")
+  useEffect(() => {
+    if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production') {
+      console.assert(UAVS.length === KPI.totalUavs, `UAV count mismatch: KPI.totalUavs=${KPI.totalUavs}, actual=${UAVS.length}`);
+      ANOMALIES.forEach((a) => {
+        const exists = UAVS.some((u) => u.id === a.id);
+        console.assert(exists, `Anomaly refers to unknown UAV: ${a.id}`);
+      });
+    }
+  }, []);
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100">
       <div className="sticky top-0 z-40 backdrop-blur-lg bg-white/80 border-b-2 border-slate-200 shadow-sm">
