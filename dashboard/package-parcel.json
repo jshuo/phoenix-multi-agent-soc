@@ -1,0 +1,23 @@
+{
+  "name": "phoenix-multi-agent-soc-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "parcel app/index.html --port 3000",
+    "build": "parcel build app/index.html --out-dir dist"
+  },
+  "dependencies": {
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-is": "^18.2.0",
+    "recharts": "^2.8.0"
+  },
+  "devDependencies": {
+    "@parcel/transformer-typescript-tsc": "^2.9.3",
+    "parcel": "^2.9.3",
+    "typescript": "^5.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0"
+  }
+}

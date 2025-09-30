@@ -2,3 +2,4 @@ aiagent
 build
 src/egg-info
 dashboard/node_modules
+dashboard/.next

@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, AlertTriangle, Bell, Brain, Filter, Truck, TrendingDown, Zap, Thermometer, MapPin, Battery, Database, Users, Settings, Settings2, ShieldCheck, PackageSearch, Globe, GaugeCircle, TrendingUp } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
