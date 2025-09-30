@@ -15,7 +15,9 @@ Requires-Dist: tiktoken
 Requires-Dist: python-dotenv
 Requires-Dist: stable-baselines3
 Requires-Dist: gymnasium
+Requires-Dist: faiss-cpu
 Requires-Dist: dotenv
+Requires-Dist: matplotlib
 Dynamic: license-file
 
 # Phoenix Multi-Agent SOC

@@ -5,7 +5,7 @@ import numpy as np
 from collections import deque
 from sklearn.ensemble import IsolationForest
 
-ACTIONS = ["monitor", "escalate", "calibrate", "peer_check", "flag"]
+ACTIONS = ["monitor", "escalate", "calibrate", "peer_check", "flag", "increase_sampling"]
 
 # ---------------- Kalman filter (1D, per-sample) ----------------
 class SimpleKF1D:
@@ -28,15 +28,50 @@ def bucket_anomaly(score):
     return 0 if score < 0.1 else (1 if score < 0.3 else 2)
 
 def reward_fn(state, action):
-    #                   0:monitor 1:escalate 2:calibrate 3:peer_check 4:flag
-    cost = {0:0.0,      1:-0.4,   2:-0.2,     3:-0.05,     4:-0.5}[action]  # cheaper to peer_check
+    """
+    Calculate the reward based on the current state and action.
 
+    Args:
+        state (int): The current state (0: low anomaly, 1: medium anomaly, 2: high anomaly).
+        action (int): The action taken (0: monitor, 1: escalate, 2: calibrate, 3: peer_check, 4: flag).
+
+    Returns:
+        float: The calculated reward.
+    """
+    # Define the cost for each action
+    cost = {
+        0: 0.0,  # monitor
+        1: -0.4,  # escalate
+        2: -0.2,  # calibrate
+        3: -0.05,  # peer_check
+        4: -0.5   # flag
+    }[action]
+
+    # Define the gain based on the state and action
     if state == 0:  # low anomaly
-        gain = {0:1.0,  3:0.4,     2:0.2,      1:-0.6,      4:-1.0}[action]
+        gain = {
+            0: 1.0,  # monitor
+            3: 0.4,  # peer_check
+            2: 0.2,  # calibrate
+            1: -0.6, # escalate
+            4: -1.0  # flag
+        }[action]
     elif state == 1:  # medium anomaly → prefer peer_check
-        gain = {3:1.2,  0:0.3,     2:0.2,      1:-0.1,      4:-0.6}[action]
-    else:  # state == 2 high anomaly
-        gain = {4:1.1,  1:0.8,     3:0.5,      2:0.3,       0:-1.0}[action]
+        gain = {
+            3: 1.2,  # peer_check
+            0: 0.3,  # monitor
+            2: 0.2,  # calibrate
+            1: -0.1, # escalate
+            4: -0.6  # flag
+        }[action]
+    else:  # state == 2: high anomaly
+        gain = {
+            4: 1.1,  # flag
+            1: 0.8,  # escalate
+            3: 0.5,  # peer_check
+            2: 0.3,  # calibrate
+            0: -1.0  # monitor
+        }[action]
 
     return gain + cost
 
