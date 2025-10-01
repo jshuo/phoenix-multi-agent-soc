@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Activity, AlertTriangle, Bell, Brain, Filter, Truck, TrendingDown, Zap, Thermometer, MapPin, Battery, Database, Users, Settings, Settings2, ShieldCheck, PackageSearch, Globe, GaugeCircle, TrendingUp } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
+import GeolocationMap from '../components/GeolocationMap';
 
 const CARGO = ["PERISH", "ELECT", "HAZ", "BULK", "FRAG"];
 const FWDQ = ["UNK", "LOW", "MED", "HIGH"];
@@ -408,6 +409,30 @@ const AIoTDigitalTwin = () => {
         </div>
       </div>
 
+      {/* Global Shipment Tracking Map - Top Position */}
+      <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold">Global Shipment Tracking</h3>
+          <div className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-violet-600"/>
+            <span className="text-sm text-gray-500">Live Updates • {kpis.active.toLocaleString()} Active Shipments</span>
+          </div>
+        </div>
+        <GeolocationMap 
+          height="500px"
+          selectedShipment={selected?.tracker}
+          onShipmentSelect={(shipmentId) => {
+            // Find the alert that matches this shipment
+            const matchingAlert = alerts.find(alert => 
+              alert.tracker === shipmentId || alert.id === shipmentId
+            );
+            if (matchingAlert) {
+              setSelected(matchingAlert);
+            }
+          }}
+        />
+      </div>
+
       <div className="grid grid-cols-7 gap-3">
         {[
           { title: "Active Shipments", icon: Truck, value: kpis.active.toLocaleString(), sub: "across all tenants" },
@@ -645,14 +670,29 @@ const AIoTDigitalTwin = () => {
 
         <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Global Coverage</h3>
+            <h3 className="text-sm font-semibold">Regional Statistics</h3>
             <Globe className="h-4 w-4 text-gray-500"/>
           </div>
           <div className="h-48 rounded-xl bg-gradient-to-br from-violet-50 to-blue-50 border border-slate-200 flex items-center justify-center">
             <div className="text-center p-6">
-              <Globe className="h-12 w-12 text-violet-400 mx-auto mb-2" />
-              <p className="text-sm text-slate-600 font-medium">Real-time Global Tracking</p>
-              <p className="text-xs text-slate-500 mt-1">Taiwan → LA/AMS/NRT + 15 routes</p>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-2xl font-bold text-violet-600">15</div>
+                  <div className="text-gray-600">Active Routes</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-blue-600">8</div>
+                  <div className="text-gray-600">Regions</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-emerald-600">94.2%</div>
+                  <div className="text-gray-600">Coverage</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-amber-600">24/7</div>
+                  <div className="text-gray-600">Monitoring</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
