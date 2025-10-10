@@ -1,5 +1,10 @@
-import { NextResponse } from 'next/server';
-export async function POST(req: Request) {
-  const body = await req.json();
-  return NextResponse.json({ ok: true, received: body });
+
+
+import { NextRequest, NextResponse } from "next/server";
+import { askExecutive } from "@/lib/agent";
+
+export async function POST(req: NextRequest) {
+  const { question, region } = await req.json();
+  const result = await askExecutive(question, { region });
+  return NextResponse.json(result); // {summary, data[], sources?}
 }

@@ -1,12 +1,147 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, Activity, Radar, MapPin, Rocket, Settings2, LineChart, Play, Pause, RefreshCw, ChevronRight, Shield, Bell, Search, Zap, Users, Target, Radio, Plane } from "lucide-react";
+
+// Custom Badge component
+const Badge = ({ children, className = "", variant = "default", ...props }) => {
+  const baseClasses = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold";
+  const variants = {
+    default: "bg-slate-900 text-white",
+    secondary: "bg-slate-100 text-slate-900",
+    outline: "border border-slate-300 bg-transparent"
+  };
+  
+  return (
+    <span className={`${baseClasses} ${variants[variant]} ${className}`} {...props}>
+      {children}
+    </span>
+  );
+};
+
+// Custom Button component
+const Button = ({ children, className = "", variant = "default", size = "default", ...props }) => {
+  const baseClasses = "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50";
+  const variants = {
+    default: "bg-slate-900 text-white hover:bg-slate-800",
+    secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
+    outline: "border border-slate-300 bg-transparent hover:bg-slate-100"
+  };
+  const sizes = {
+    default: "h-10 px-4 py-2",
+    sm: "h-9 rounded-md px-3",
+    lg: "h-11 rounded-md px-8"
+  };
+  
+  return (
+    <button className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
+      {children}
+    </button>
+  );
+};
+
+// Custom Card components
+const Card = ({ children, className = "", ...props }) => (
+  <div className={`rounded-lg border border-slate-200 bg-white text-slate-950 shadow-sm ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const CardHeader = ({ children, className = "", ...props }) => (
+  <div className={`flex flex-col space-y-1.5 p-6 ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+const CardTitle = ({ children, className = "", ...props }) => (
+  <h3 className={`text-2xl font-semibold leading-none tracking-tight ${className}`} {...props}>
+    {children}
+  </h3>
+);
+
+const CardDescription = ({ children, className = "", ...props }) => (
+  <p className={`text-sm text-slate-500 ${className}`} {...props}>
+    {children}
+  </p>
+);
+
+const CardContent = ({ children, className = "", ...props }) => (
+  <div className={`p-6 pt-0 ${className}`} {...props}>
+    {children}
+  </div>
+);
+
+// Custom Input component
+const Input = ({ className = "", type = "text", ...props }) => (
+  <input
+    type={type}
+    className={`flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    {...props}
+  />
+);
+
+// Custom Progress component
+const Progress = ({ value = 0, className = "", ...props }) => (
+  <div className={`relative h-4 w-full overflow-hidden rounded-full bg-slate-100 ${className}`} {...props}>
+    <div
+      className="h-full w-full flex-1 bg-slate-900 transition-all"
+      style={{ transform: `translateX(-${100 - value}%)` }}
+    />
+  </div>
+);
+
+// Custom Separator component
+const Separator = ({ orientation = "horizontal", className = "", ...props }) => (
+  <div
+    className={`shrink-0 bg-slate-200 ${
+      orientation === "horizontal" ? "h-[1px] w-full" : "h-full w-[1px]"
+    } ${className}`}
+    {...props}
+  />
+);
+
+// Custom Tabs components
+const Tabs = ({ children, defaultValue, className = "", ...props }) => {
+  const [activeTab, setActiveTab] = useState(defaultValue);
+  
+  return (
+    <div className={className} {...props}>
+      {React.Children.map(children, child => 
+        React.cloneElement(child, { activeTab, setActiveTab })
+      )}
+    </div>
+  );
+};
+
+const TabsList = ({ children, className = "", activeTab, setActiveTab, ...props }) => (
+  <div className={`inline-flex h-10 items-center justify-center rounded-md bg-slate-100 p-1 text-slate-500 ${className}`} {...props}>
+    {React.Children.map(children, child => 
+      React.cloneElement(child, { activeTab, setActiveTab })
+    )}
+  </div>
+);
+
+const TabsTrigger = ({ children, value, className = "", activeTab, setActiveTab, ...props }) => (
+  <button
+    className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
+      activeTab === value ? "bg-white text-slate-950 shadow-sm" : ""
+    } ${className}`}
+    onClick={() => setActiveTab?.(value)}
+    {...props}
+  >
+    {children}
+  </button>
+);
+
+const TabsContent = ({ children, value, className = "", activeTab, ...props }) => {
+  if (activeTab !== value) return null;
+  
+  return (
+    <div className={`mt-2 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${className}`} {...props}>
+      {children}
+    </div>
+  );
+};
 
 const UAVS = [
   { id: "UAV-Alpha-01", status: "ok", battery: 82, eta: "05:42", pos: [15, 28], mission: "前線補給", cargo: "彈藥" },

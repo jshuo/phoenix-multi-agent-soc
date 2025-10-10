@@ -1,5 +1,6 @@
-import AIoTDigitalTwin from './maa_s_operations_dashboard_react';
+// import DefenseAIDashboard from './taiwan-ai-contest';
+import ExecutiveDashboard from './executive-dashboard';
 
 export default function Home() {
-  return <AIoTDigitalTwin />;
+  return <ExecutiveDashboard />;
 }
