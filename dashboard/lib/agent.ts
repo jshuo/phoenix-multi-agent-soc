@@ -56,6 +56,9 @@ export async function askExecutive(
   // Analyze intent and fetch relevant data
   const { intent, params } = await analyzeIntent(question, execContext);
 
+  // Log extracted parameters for debugging
+  console.log('[Agent] Intent analysis:', { intent, params });
+
   let toolResults: any = {};
 
   // Call appropriate tools based on intent
@@ -227,6 +230,11 @@ async function analyzeIntent(
     if (numberMatch) {
       params.limit = parseInt(numberMatch[1]);
     }
+    
+    // Extract "this week" or "week" for top risks
+    if (/this\s+week|week/i.test(question) && !params.days) {
+      params.days = 7;
+    }
   }
 
   // Trends / analysis
@@ -257,13 +265,18 @@ async function analyzeIntent(
     intent = "supplierRisks";
   }
 
-  // Extract region if mentioned
-  if (/asia|pacific|apac|asia-pacific/i.test(question)) {
+  // Extract region if mentioned (check all variations)
+  if (/asia[-\s]?pacific|apac|asia/i.test(question)) {
     params.region = "Asia-Pacific";
   } else if (/europe|eu|emea/i.test(question)) {
     params.region = "Europe";
-  } else if (/america|us|north america/i.test(question)) {
+  } else if (/north\s+america|america|americas|us/i.test(question)) {
     params.region = "North America";
+  }
+  
+  // Log region extraction for debugging
+  if (params.region) {
+    console.log('[Agent] Extracted region:', params.region, 'from question:', question);
   }
 
   // Extract severity
@@ -275,14 +288,21 @@ async function analyzeIntent(
     params.severity = "low";
   }
 
-  // Extract time period
+  // Extract time period (check multiple patterns)
   const daysMatch = question.match(/(\d+)\s*days?/i);
   if (daysMatch) {
     params.days = parseInt(daysMatch[1]);
-  } else if (/week/i.test(question)) {
+  } else if (/this\s+week|week/i.test(question) && !params.days) {
     params.days = 7;
-  } else if (/month/i.test(question)) {
+  } else if (/this\s+month|month/i.test(question)) {
     params.days = 30;
+  } else if (/today/i.test(question)) {
+    params.days = 1;
+  }
+  
+  // Log time period extraction for debugging
+  if (params.days) {
+    console.log('[Agent] Extracted days:', params.days, 'from question:', question);
   }
 
   return { intent, params };
