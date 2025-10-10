@@ -135,10 +135,19 @@ const GeolocationMap: React.FC<GeolocationMapProps> = ({
   const [shipments, setShipments] = useState<any[]>([]);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true);
     setMapLoaded(true);
-    setShipments(generateMockShipments());
+    
+    // Generate shipments only on client side to avoid hydration mismatch
+    const initialShipments = generateMockShipments();
+    setShipments(initialShipments);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
     
     // Update shipment positions every 10 seconds
     const interval = setInterval(() => {
@@ -159,7 +168,7 @@ const GeolocationMap: React.FC<GeolocationMapProps> = ({
     }, 10000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isClient]);
 
   // Custom icon creation function
   const createCustomIcon = (cargo: string, hasAlert: boolean = false) => {
@@ -204,7 +213,7 @@ const GeolocationMap: React.FC<GeolocationMapProps> = ({
     });
   };
 
-  if (!mapLoaded) {
+  if (!mapLoaded || !isClient) {
     return (
       <div className={`${className} bg-gray-100 rounded-lg flex items-center justify-center`} style={{ height }}>
         <div className="text-center">

@@ -56,20 +56,27 @@ const fwdqDistribution = [
 
 const cargoAlerts = CARGO.map((c) => ({ cargo: c, count: Math.round(5 + Math.random() * 20) }));
 
-function makeAlert(id) {
-  const cargo = CARGO[Math.floor(Math.random() * CARGO.length)];
-  const lane = lanes[Math.floor(Math.random() * lanes.length)];
-  const fwd = forwarders[Math.floor(Math.random() * forwarders.length)];
-  const ifb = IF_BUCKET[Math.floor(Math.random() * IF_BUCKET.length)];
-  const sev = SEVERITY[Math.floor(Math.random() * SEVERITY.length)];
-  const fwdq = FWDQ[Math.floor(Math.random() * FWDQ.length)];
-  const rl = ACTIONS[Math.floor(Math.random() * ACTIONS.length)];
+function makeAlert(id: number) {
+  // Use seeded random for consistent server/client rendering
+  const seed = id * 1000;
+  const seededRandom = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  const cargo = CARGO[Math.floor(seededRandom(seed + 1) * CARGO.length)];
+  const lane = lanes[Math.floor(seededRandom(seed + 2) * lanes.length)];
+  const fwd = forwarders[Math.floor(seededRandom(seed + 3) * forwarders.length)];
+  const ifb = IF_BUCKET[Math.floor(seededRandom(seed + 4) * IF_BUCKET.length)];
+  const sev = SEVERITY[Math.floor(seededRandom(seed + 5) * SEVERITY.length)];
+  const fwdq = FWDQ[Math.floor(seededRandom(seed + 6) * FWDQ.length)];
+  const rl = ACTIONS[Math.floor(seededRandom(seed + 7) * ACTIONS.length)];
   const reason = fwdq === "LOW" && (sev === "MED" || sev === "HIGH") ? "policy: low fwdq tilts escalate" : "rl: expected cost minimal";
   
   return {
     id: `EV-${1000 + id}`,
     time: nowISO(),
-    tracker: `TRK${Math.floor(100000 + Math.random() * 900000)}`,
+    tracker: `TRK${Math.floor(100000 + seededRandom(seed + 8) * 900000)}`,
     cargo,
     lane,
     forwarder: fwd,
@@ -78,13 +85,14 @@ function makeAlert(id) {
     severity: sev,
     suggested: rl,
     policy_reason: reason,
-    temp_sla_violation_min: Math.round(Math.random() * 60)
+    temp_sla_violation_min: Math.floor(seededRandom(seed + 9) * 60)
   };
 }
 
 const AIoTDigitalTwin = () => {
   const [viewMode, setViewMode] = useState('dashboard');
   const [simulationRunning, setSimulationRunning] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const [telemetryData, setTelemetryData] = useState({
     temperature: 22,
     pressure: 101.3,
@@ -100,38 +108,47 @@ const AIoTDigitalTwin = () => {
   const [lane, setLane] = useState("ALL");
   const [fwdq, setFwdq] = useState("ALL");
   const [severity, setSeverity] = useState("ALL");
-  const [alerts, setAlerts] = useState(Array.from({ length: 14 }).map((_, i) => makeAlert(i)));
+  const [alerts, setAlerts] = useState<any[]>([]);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
-  const [currentTime, setCurrentTime] = useState(nowISO());
+  const [currentTime, setCurrentTime] = useState("");
   const [archTab, setArchTab] = useState('overview');
 
+  // Initialize client-side only data
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(nowISO()), 30000);
-    return () => clearInterval(timer);
+    setIsClient(true);
+    setCurrentTime(nowISO());
+    setAlerts(Array.from({ length: 14 }).map((_, i) => makeAlert(i)));
   }, []);
 
   useEffect(() => {
-    if (simulationRunning) {
-      const interval = setInterval(() => {
-        setTelemetryData(prev => ({
-          temperature: Math.max(15, Math.min(35, prev.temperature + (Math.random() - 0.5) * 2)),
-          pressure: Math.max(95, Math.min(105, prev.pressure + (Math.random() - 0.5) * 0.5)),
-          battery: Math.max(0, prev.battery - Math.random() * 0.1),
-          routeDeviation: Math.max(0, prev.routeDeviation + (Math.random() - 0.6) * 0.3),
-          speedSpike: Math.random() > 0.9 ? Math.random() * 10 : 0,
-          anomalyScore: Math.random()
-        }));
+    if (!isClient) return;
+    
+    const timer = setInterval(() => setCurrentTime(nowISO()), 30000);
+    return () => clearInterval(timer);
+  }, [isClient]);
 
-        if (Math.random() > 0.85) {
-          setAlerts(prev => [makeAlert(Date.now()), ...prev.slice(0, 19)]);
-        }
-      }, 3000);
+  useEffect(() => {
+    if (!isClient || !simulationRunning) return;
+    
+    const interval = setInterval(() => {
+      setTelemetryData(prev => ({
+        temperature: Math.max(15, Math.min(35, prev.temperature + (Math.random() - 0.5) * 2)),
+        pressure: Math.max(95, Math.min(105, prev.pressure + (Math.random() - 0.5) * 0.5)),
+        battery: Math.max(0, prev.battery - Math.random() * 0.1),
+        routeDeviation: Math.max(0, prev.routeDeviation + (Math.random() - 0.6) * 0.3),
+        speedSpike: Math.random() > 0.9 ? Math.random() * 10 : 0,
+        anomalyScore: Math.random()
+      }));
 
-      return () => clearInterval(interval);
-    }
-  }, [simulationRunning]);
+      if (Math.random() > 0.85) {
+        setAlerts(prev => [makeAlert(Date.now()), ...prev.slice(0, 19)]);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [simulationRunning, isClient]);
 
   const filtered = useMemo(() => {
     let result = alerts.filter((a) =>
@@ -360,339 +377,248 @@ const AIoTDigitalTwin = () => {
 
   const renderDashboard = () => (
     <div className="space-y-4">
+      {/* Top Navigation/Filters - Simplified */}
       <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="grid grid-cols-6 gap-3">
-          <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Customer</label>
-            <input value={customer} onChange={(e) => setCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Range</label>
-            <select value={range} onChange={(e) => setRange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <select value={range} onChange={(e) => setRange(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
               <option value="2h">Last 2h</option>
               <option value="24h">Last 24h</option>
               <option value="7d">Last 7d</option>
             </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Cargo</label>
-            <select value={cargo} onChange={(e) => setCargo(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <option value="ALL">ALL</option>
+            <select value={cargo} onChange={(e) => setCargo(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+              <option value="ALL">All Cargo</option>
               {CARGO.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Lane</label>
-            <select value={lane} onChange={(e) => setLane(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <option value="ALL">ALL</option>
-              {lanes.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
+          <div className="text-sm text-gray-600">
+            {customer} • {isClient ? currentTime.slice(11, 16) : '--:--'}
           </div>
-          <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Fwd Quality</label>
-            <select value={fwdq} onChange={(e) => setFwdq(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <option value="ALL">ALL</option>
-              {FWDQ.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-700 block mb-1">Severity</label>
-            <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <option value="ALL">ALL</option>
-              {SEVERITY.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <Filter className="h-4 w-4 text-gray-500"/>
-          <input placeholder="Search alert id / tracker / forwarder" value={query} onChange={e=>setQuery(e.target.value)} className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"/>
         </div>
       </div>
 
-      {/* Global Shipment Tracking Map - Top Position */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold">Global Shipment Tracking</h3>
-          <div className="flex items-center gap-2">
-            <Globe className="h-5 w-5 text-violet-600"/>
-            <span className="text-sm text-gray-500">Live Updates • {kpis.active.toLocaleString()} Active Shipments</span>
-          </div>
-        </div>
-        <GeolocationMap 
-          height="500px"
-          selectedShipment={selected?.tracker}
-          onShipmentSelect={(shipmentId) => {
-            // Find the alert that matches this shipment
-            const matchingAlert = alerts.find(alert => 
-              alert.tracker === shipmentId || alert.id === shipmentId
-            );
-            if (matchingAlert) {
-              setSelected(matchingAlert);
-            }
-          }}
-        />
-      </div>
-
-      <div className="grid grid-cols-7 gap-3">
-        {[
-          { title: "Active Shipments", icon: Truck, value: kpis.active.toLocaleString(), sub: "across all tenants" },
-          { title: "Open Alerts", icon: AlertTriangle, value: kpis.open, sub: "filtered view" },
-          { title: "On-time", icon: ShieldCheck, value: `${Math.round(kpis.onTime*100)}%`, sub: "milestones" },
-          { title: "MTTA", icon: Activity, value: `${kpis.mtta}m`, sub: "acknowledge" },
-          { title: "Excursion", icon: Thermometer, value: kpis.excursion, sub: "per 1k" },
-          { title: "False Alarm ↓", icon: TrendingDown, value: `-${kpis.falseAlarmReduction}%`, sub: "Taiwan RL", bg: "bg-gradient-to-br from-emerald-50 to-emerald-100" },
-          { title: "OPEX ↓", icon: Zap, value: `-${kpis.opexReduction}%`, sub: "Multi-Agent", bg: "bg-gradient-to-br from-blue-50 to-blue-100" }
-        ].map((kpi, i) => (
-          <div key={i} className={`${kpi.bg || 'bg-white'} rounded-lg shadow-md p-4`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-medium text-gray-700">{kpi.title}</div>
-              <kpi.icon className="h-4 w-4 text-gray-500"/>
+      {/* Main Dashboard Layout - 3 Column Grid */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* Left Panel - Fleet Overview */}
+        <div className="col-span-3 space-y-4">
+          <div className="bg-gray-800 text-white rounded-lg p-6">
+            <h2 className="text-lg font-semibold mb-4">Fleet Overview</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-gray-300">Total Active Shipments</div>
+                <div className="text-3xl font-bold">1,245</div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-300">At Risk</div>
+                  <div className="text-xl font-semibold">76 (6.3%)</div>
+                </div>
+                <div>
+                  <div className="text-gray-300">On Time Delivery Rate</div>
+                  <div className="text-xl font-semibold text-green-400">94.2%</div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="text-sm text-gray-300">Carbon Footprint</div>
+                <div className="text-lg font-semibold">0,82 <span className="text-sm">tCO₂e</span></div>
+                <div className="text-xs text-gray-400">0,82 t</div>
+              </div>
             </div>
-            <div className="text-2xl font-bold text-gray-900">{kpi.value}</div>
-            <div className="text-xs text-gray-500 mt-1">{kpi.sub}</div>
           </div>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Anomalies & Alerts (24h)</h3>
-            <Brain className="h-4 w-4 text-violet-600"/>
-          </div>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={timeseries}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="t" hide />
-                <YAxis stroke="#64748b" />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="anomalies" stroke={COLORS.primary} dot={false} strokeWidth={2} />
-                <Line type="monotone" dataKey="alerts" stroke={COLORS.rose} dot={false} strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <h3 className="text-sm font-semibold mb-3">Forwarder Quality</h3>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={fwdqDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} label>
-                  {fwdqDistribution.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-white rounded-lg shadow-md">
-          <div className="p-4 border-b flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold">Live Alerts</h3>
-              <span className="px-2 py-1 bg-gray-100 rounded-full text-xs font-medium">{filtered.length}</span>
+          {/* Cold-Chain KPI */}
+          <div className="bg-gray-800 text-white rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">Cold-Chain KPI</h3>
+            
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-gray-300">% Shipments within SLA (past 7d)</span>
+                  <span className="text-sm font-semibold">97%</span>
+                </div>
+                <div className="text-green-400 text-sm font-medium">07A</div>
+                <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
+                  <div className="bg-green-400 h-2 rounded-full" style={{width: '97%'}}></div>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-300">Mean Time to Detect (MTTD) Temp Breach</span>
+                  <span className="text-sm font-semibold">3.7%</span>
+                </div>
+                <div className="text-sm">8 min</div>
+              </div>
+              
+              <div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-300">False Alarm Rate (Kalman HIF+ RL)</span>
+                  <span className="text-sm font-semibold">3.1%</span>
+                </div>
+                <div className="text-sm">3.1%</div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              {['all', 'anomalous', 'needs-review'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1 rounded text-xs font-medium ${activeTab === tab ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-                >
-                  {tab.replace('-', ' ').toUpperCase()}
-                </button>
+          </div>
+        </div>
+
+        {/* Center Panel - World Map */}
+        <div className="col-span-6">
+          <div className="bg-white rounded-lg shadow-md p-4 h-full">
+            <GeolocationMap 
+              height="600px"
+              selectedShipment={selected?.tracker}
+              onShipmentSelect={(shipmentId) => {
+                const matchingAlert = alerts.find(alert => 
+                  alert.tracker === shipmentId || alert.id === shipmentId
+                );
+                if (matchingAlert) {
+                  setSelected(matchingAlert);
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Right Panel - Real-Time Risk & Insights */}
+        <div className="col-span-3 space-y-4">
+          <div className="bg-gray-800 text-white rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">Real-Time Risk</h3>
+            
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-gray-300 border-b border-gray-600 pb-2">
+                <div>Shipment ID</div>
+                <div>Cargo Type</div>
+                <div>Issue</div>
+              </div>
+              
+              {[
+                { id: 'ARV-99213', cargo: 'Pharma', issue: '0.37' },
+                { id: 'ARV-99462', cargo: 'Electronics', issue: '0.46' },
+                { id: 'ARV-99311', cargo: 'Food', issue: '0.72' },
+                { id: 'ARV-77554', cargo: 'Defense', issue: '0.31' }
+              ].map((item, i) => (
+                <div key={i} className="grid grid-cols-3 gap-2 text-sm py-1">
+                  <div className="text-blue-400">{item.id}</div>
+                  <div>{item.cargo}</div>
+                  <div className="text-red-400">{item.issue}</div>
+                </div>
               ))}
             </div>
           </div>
-          <div className="overflow-auto max-h-96">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-white border-b">
-                <tr className="text-left text-gray-600">
-                  <th className="py-2 px-2">Time</th>
-                  <th className="py-2 px-2">ID</th>
-                  <th className="py-2 px-2">Tracker</th>
-                  <th className="py-2 px-2">Cargo</th>
-                  <th className="py-2 px-2">Lane</th>
-                  <th className="py-2 px-2">Fwd</th>
-                  <th className="py-2 px-2">FwdQ</th>
-                  <th className="py-2 px-2">IF</th>
-                  <th className="py-2 px-2">Sev</th>
-                  <th className="py-2 px-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((a) => (
-                  <tr key={a.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-2 px-2 text-slate-500">{a.time.slice(11, 16)}</td>
-                    <td className="py-2 px-2">
-                      <button className="text-violet-700 hover:underline font-medium" onClick={()=>setSelected(a)}>{a.id}</button>
-                    </td>
-                    <td className="py-2 px-2 text-slate-600">{a.tracker.slice(-6)}</td>
-                    <td className="py-2 px-2">
-                      <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">{a.cargo}</span>
-                    </td>
-                    <td className="py-2 px-2 text-slate-600">{a.lane}</td>
-                    <td className="py-2 px-2 text-slate-600">{a.forwarder.id}</td>
-                    <td className="py-2 px-2">
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${badgeForFwdq(a.fwdq)}`}>{a.fwdq}</span>
-                    </td>
-                    <td className="py-2 px-2">
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${badgeForIFBucket(a.if_bucket)}`}>{a.if_bucket.slice(0,4)}</span>
-                    </td>
-                    <td className="py-2 px-2">
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${badgeForSeverity(a.severity)}`}>{a.severity}</span>
-                    </td>
-                    <td className="py-2 px-2 text-right">
-                      <div className="flex gap-1 justify-end">
-                        <button className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50" onClick={()=>resolve(a.id)}>
-                          Mon
-                        </button>
-                        <button className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50" onClick={()=>resolve(a.id)}>
-                          Peer
-                        </button>
-                        <button className="px-2 py-1 text-xs bg-rose-600 text-white rounded hover:bg-rose-700" onClick={()=>resolve(a.id)}>
-                          Esc
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={10} className="py-8 text-center text-slate-500">No alerts match current filters.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Alert Details</h3>
-            <ShieldCheck className="h-4 w-4 text-green-600"/>
+          {/* Freight Forwarder Metrics */}
+          <div className="bg-gray-800 text-white rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">Freight Forwarder Metrics</h3>
+            
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-gray-300">DHL Global</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-400"></div>
+                    <span className="font-medium">HIGH (98.2%)</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-300">Kuehne+Nagel</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+                    <span className="font-medium">MED (94.1%)</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-gray-300">DB Schenker</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+                    <span className="font-medium">MED (91.7%)</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-300">Expeditors</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-red-400"></div>
+                    <span className="font-medium">LOW (87.3%)</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-2 border-t border-gray-600">
+                <div className="text-xs text-gray-400">
+                  Quality Score: On-time delivery, temperature compliance, damage rate
+                </div>
+              </div>
+            </div>
           </div>
-          {selected ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="font-medium">{selected.id}</div>
-                <span className="px-2 py-1 bg-gray-100 rounded text-xs">{selected.tracker}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div><span className="text-slate-500">Cargo:</span> {selected.cargo}</div>
-                <div><span className="text-slate-500">Lane:</span> {selected.lane}</div>
-                <div className="col-span-2"><span className="text-slate-500">Forwarder:</span> {selected.forwarder.name}</div>
-                <div>
-                  <span className="text-slate-500">FwdQ:</span>{' '}
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${badgeForFwdq(selected.fwdq)}`}>{selected.fwdq}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">IF:</span>{' '}
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${badgeForIFBucket(selected.if_bucket)}`}>{selected.if_bucket}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Severity:</span>{' '}
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${badgeForSeverity(selected.severity)}`}>{selected.severity}</span>
-                </div>
-                <div><span className="text-slate-500">Temp SLA:</span> {selected.temp_sla_violation_min}m</div>
-              </div>
-              <div className="text-xs bg-gray-50 p-2 rounded">
-                <div className="font-medium mb-1">RL Suggestion: {selected.suggested}</div>
-                <div className="text-gray-600">{selected.policy_reason}</div>
-              </div>
-              <div className="space-y-2 pt-2 border-t">
-                <div className="text-xs text-gray-500 mb-2">Peer Review Actions:</div>
-                <button className="w-full px-3 py-2 text-sm border border-green-500 text-green-700 rounded hover:bg-green-50" onClick={()=>resolve(selected.id)}>
-                  ✓ Review OK → Monitor
-                </button>
-                <button className="w-full px-3 py-2 text-sm border border-red-500 text-red-700 rounded hover:bg-red-50" onClick={()=>resolve(selected.id)}>
-                  ! Review NOT OK → Escalate
-                </button>
-                <button className="w-full px-3 py-2 text-sm border border-yellow-500 text-yellow-700 rounded hover:bg-yellow-50" onClick={()=>resolve(selected.id)}>
-                  ? Uncertain → Increase Sampling
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              <AlertTriangle className="h-12 w-12 mx-auto mb-2 opacity-50"/>
-              <p className="text-sm">Select an alert to view details</p>
-            </div>
-          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <h3 className="text-sm font-semibold mb-3">Alerts by Cargo</h3>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cargoAlerts}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="cargo" stroke="#64748b" />
-                <YAxis stroke="#64748b" />
-                <Tooltip />
-                <Bar dataKey="count" fill={COLORS.blue} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">MTTR Trend</h3>
-            <GaugeCircle className="h-4 w-4 text-gray-500"/>
-          </div>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={timeseries}>
-                <defs>
-                  <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={COLORS.emerald} stopOpacity={0.4} />
-                    <stop offset="95%" stopColor={COLORS.emerald} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="t" hide />
-                <YAxis stroke="#64748b" />
-                <Tooltip />
-                <Area type="monotone" dataKey="mttr" stroke={COLORS.emerald} strokeWidth={2} fillOpacity={1} fill="url(#g1)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Regional Statistics</h3>
-            <Globe className="h-4 w-4 text-gray-500"/>
-          </div>
-          <div className="h-48 rounded-xl bg-gradient-to-br from-violet-50 to-blue-50 border border-slate-200 flex items-center justify-center">
-            <div className="text-center p-6">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div className="text-2xl font-bold text-violet-600">15</div>
-                  <div className="text-gray-600">Active Routes</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-blue-600">8</div>
-                  <div className="text-gray-600">Regions</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-emerald-600">94.2%</div>
-                  <div className="text-gray-600">Coverage</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-amber-600">24/7</div>
-                  <div className="text-gray-600">Monitoring</div>
-                </div>
+      {/* Bottom Section - Incident Timeline and Additional Insights */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-gray-800 text-white rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Incident Timeline</h3>
+          
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+              <div className="text-sm">
+                <span className="text-yellow-400 font-medium">10:22</span>
+                <span className="ml-2">GPS drift-detected, ARV-99202</span>
+                <div className="text-gray-400">→ Peer, Check triggered</div>
               </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-red-400"></div>
+              <div className="text-sm">
+                <span className="text-red-400 font-medium">09:47</span>
+                <span className="ml-2">Temp breach, ARV-99213</span>
+                <div className="text-gray-400">→ Escalation ticket sent</div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-green-400"></div>
+              <div className="text-sm">
+                <span className="text-green-400 font-medium">08:30</span>
+                <span className="ml-2">Battery recalibrated, ARV-99311</span>
+                <div className="text-gray-400">→ RRV- status back to Normal</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 text-white rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-4">Predictive Insights</h3>
+          
+          <div className="space-y-4 text-sm">
+            <div>
+              <div className="font-medium">Forecasted Cold Chain Breaches (next x8 P)</div>
+              <div className="text-gray-300">3 (Food lane→ Hamburg)</div>
+              <div className="text-gray-300">Pharma lane→ Chicago</div>
+            </div>
+            
+            <div>
+              <div className="font-medium">Predicted Port Congestion Risk</div>
+              <div className="text-red-400">High at Rotterdam</div>
+              <div className="text-gray-300">(ETA delays +12h)</div>
+            </div>
+            
+            <div>
+              <div className="font-medium">"What-if" Digital Twin Simulation 24h</div>
+              <div className="text-gray-300">28% reduction in spoilage if</div>
+              <div className="text-gray-300">sampling rate adapted dynamically</div>
+            </div>
+            
+            <div>
+              <div className="font-medium">AI Optimization Recommendations</div>
+              <div className="text-green-400">Route TPE→AMS: Switch to DHL (+2.3% efficiency)</div>
+              <div className="text-yellow-400">Cold chain: Increase monitoring frequency 15%</div>
             </div>
           </div>
         </div>
@@ -713,7 +639,7 @@ const AIoTDigitalTwin = () => {
                 Arviem-ITracXing AIoT Digital Twin - MaaS Platform
               </h1>
               <p className="text-sm text-slate-600">
-                Multi-Agent Logistics Monitoring · Taiwan AI Excellence · {currentTime}
+                Multi-Agent Logistics Monitoring · Taiwan AI Excellence · {isClient ? currentTime : 'Loading...'}
               </p>
             </div>
           </div>
