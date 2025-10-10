@@ -68,6 +68,21 @@ const MOCK_RISKS: RiskItem[] = [
   }
 ];
 
+// Mock data for supplier risks
+const MOCK_SUPPLIER_RISKS = [
+  { name: 'Acme Electronics Ltd', risk: 'High', issue: 'Port congestion delays', impact: '$2.3M', region: 'Asia-Pacific' },
+  { name: 'Global Components Inc', risk: 'Medium', issue: 'Quality control issues', impact: '$890K', region: 'North America' },
+  { name: 'Pacific Manufacturing', risk: 'Medium', issue: 'Labor shortage', impact: '$650K', region: 'Asia-Pacific' }
+];
+
+// Mock data for IoT battery performance
+const MOCK_BATTERY_DATA = [
+  { device: 'Temp Sensor A1', voltage: 3.2, capacity: 85, temperature: 23, cycles: 1250, health: 'Good', predictedLife: '8 months', region: 'North America' },
+  { device: 'GPS Tracker B2', voltage: 2.9, capacity: 62, temperature: 31, cycles: 2890, health: 'Warning', predictedLife: '3 months', region: 'Asia-Pacific' },
+  { device: 'Humidity Sensor C3', voltage: 3.4, capacity: 91, temperature: 19, cycles: 850, health: 'Excellent', predictedLife: '12 months', region: 'Asia-Pacific' },
+  { device: 'Pressure Monitor D4', voltage: 2.7, capacity: 45, temperature: 38, cycles: 3200, health: 'Critical', predictedLife: '1 month', region: 'Europe' }
+];
+
 /**
  * Fetch top risks based on query parameters
  */
@@ -175,5 +190,114 @@ export async function getRiskSummary(params: { region?: string }) {
       ? Math.round((filtered.reduce((sum, r) => sum + r.score, 0) / filtered.length) * 100) / 100
       : 0,
     criticalAssets: filtered.filter(r => r.score >= 80).map(r => r.assetId)
+  };
+}
+
+/**
+ * Get supplier risks
+ */
+export async function getSupplierRisks(params: { region?: string; limit?: number }) {
+  const { region, limit = 10 } = params;
+  
+  let filtered = MOCK_SUPPLIER_RISKS.filter(supplier => {
+    if (region && supplier.region !== region) return false;
+    return true;
+  });
+
+  return {
+    suppliers: filtered.slice(0, limit),
+    totalCount: filtered.length,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Get battery performance data
+ */
+export async function getBatteryPerformance(params: { region?: string; health?: string }) {
+  const { region, health } = params;
+  
+  let filtered = MOCK_BATTERY_DATA.filter(battery => {
+    if (region && battery.region !== region) return false;
+    if (health && battery.health !== health) return false;
+    return true;
+  });
+
+  return {
+    devices: filtered,
+    summary: {
+      totalDevices: MOCK_BATTERY_DATA.length,
+      healthyDevices: MOCK_BATTERY_DATA.filter(b => b.health === 'Excellent' || b.health === 'Good').length,
+      warningDevices: MOCK_BATTERY_DATA.filter(b => b.health === 'Warning').length,
+      criticalDevices: MOCK_BATTERY_DATA.filter(b => b.health === 'Critical').length,
+      avgCapacity: Math.round(MOCK_BATTERY_DATA.reduce((sum, b) => sum + b.capacity, 0) / MOCK_BATTERY_DATA.length)
+    },
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Get battery reliability summary
+ */
+export async function getBatteryReliability() {
+  const total = MOCK_BATTERY_DATA.length;
+  const optimal = MOCK_BATTERY_DATA.filter(b => b.capacity > 80).length;
+  const needsAttention = MOCK_BATTERY_DATA.filter(b => b.capacity >= 50 && b.capacity <= 80).length;
+  const critical = MOCK_BATTERY_DATA.filter(b => b.capacity < 50).length;
+
+  return {
+    summary: `Current IoT device battery status across supply chain:
+
+• ${Math.round((optimal / total) * 100)}% of devices show optimal battery health (>80% capacity)
+• ${Math.round((needsAttention / total) * 100)}% require attention within next 6 months
+• ${Math.round((critical / total) * 100)}% are in critical condition requiring immediate replacement
+• Average battery lifespan: 18 months under current conditions
+
+Recommendation: Prioritize replacement of ${MOCK_BATTERY_DATA.filter(b => b.health === 'Critical').map(b => b.device).join(', ')}. Consider upgrading to newer battery technology for devices in high-temperature environments.`,
+    metrics: {
+      optimalPercent: Math.round((optimal / total) * 100),
+      needsAttentionPercent: Math.round((needsAttention / total) * 100),
+      criticalPercent: Math.round((critical / total) * 100),
+      avgLifespanMonths: 18
+    },
+    criticalDevices: MOCK_BATTERY_DATA.filter(b => b.health === 'Critical').map(b => b.device)
+  };
+}
+
+/**
+ * Get alert trends for a region
+ */
+export async function getAlertTrends(params: { region?: string }) {
+  const { region } = params;
+  
+  // Mock trend data based on region
+  if (region === 'Asia-Pacific' || region?.toLowerCase().includes('asia')) {
+    return {
+      summary: `There has been a 23% increase in logistics alerts across Asia this week. Key drivers include:
+
+• Typhoon-related port closures in Southeast Asia (40% of alerts)
+• Semiconductor shortage affecting electronics suppliers (35%)
+• Increased customs inspection times in China (25%)
+
+Recommendation: Consider alternative routing through Singapore and diversify semiconductor suppliers.`,
+      metrics: {
+        increasePercent: 23,
+        primaryCauses: [
+          { cause: 'Typhoon-related port closures', percent: 40 },
+          { cause: 'Semiconductor shortage', percent: 35 },
+          { cause: 'Increased customs inspection', percent: 25 }
+        ]
+      }
+    };
+  }
+  
+  // Default/global trends
+  return {
+    summary: 'Based on current data, your supply chain is operating at 94% efficiency. There are 12 active alerts requiring attention, with 3 high-priority risks identified.',
+    metrics: {
+      efficiency: 94,
+      activeAlerts: 12,
+      highPriority: 3
+    }
   };
 }

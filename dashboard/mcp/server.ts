@@ -11,7 +11,7 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
-import { getTopRisks, getRiskById, getRiskTrends, getRiskSummary } from "../lib/riskRepo.js";
+import { getTopRisks, getRiskById, getRiskTrends, getRiskSummary, getSupplierRisks, getBatteryPerformance, getBatteryReliability, getAlertTrends } from "../lib/riskRepo.js";
 
 /**
  * Define available tools
@@ -95,6 +95,63 @@ const TOOLS: Tool[] = [
       },
     },
   },
+  {
+    name: "getSupplierRisks",
+    description: "Get supplier risk data including port delays, quality issues, and labor shortages",
+    inputSchema: {
+      type: "object",
+      properties: {
+        region: {
+          type: "string",
+          description: "Filter by region (e.g., 'Asia-Pacific', 'Europe', 'North America')",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of suppliers to return (default: 10)",
+          default: 10,
+        },
+      },
+    },
+  },
+  {
+    name: "getBatteryPerformance",
+    description: "Get IoT device battery performance metrics including voltage, capacity, temperature, and health status",
+    inputSchema: {
+      type: "object",
+      properties: {
+        region: {
+          type: "string",
+          description: "Filter by region",
+        },
+        health: {
+          type: "string",
+          enum: ["Excellent", "Good", "Warning", "Critical"],
+          description: "Filter by battery health status",
+        },
+      },
+    },
+  },
+  {
+    name: "getBatteryReliability",
+    description: "Get battery reliability summary with health percentages and recommendations",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "getAlertTrends",
+    description: "Get alert trends and logistics insights for specific regions",
+    inputSchema: {
+      type: "object",
+      properties: {
+        region: {
+          type: "string",
+          description: "Region to analyze (e.g., 'Asia-Pacific', 'Europe')",
+        },
+      },
+    },
+  },
 ];
 
 /**
@@ -167,6 +224,54 @@ export function createMCPServer() {
 
         case "getRiskSummary": {
           const result = await getRiskSummary(args || {});
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "getSupplierRisks": {
+          const result = await getSupplierRisks(args || {});
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "getBatteryPerformance": {
+          const result = await getBatteryPerformance(args || {});
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "getBatteryReliability": {
+          const result = await getBatteryReliability();
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "getAlertTrends": {
+          const result = await getAlertTrends(args || {});
           return {
             content: [
               {

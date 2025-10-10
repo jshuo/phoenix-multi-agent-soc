@@ -7,7 +7,7 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import type { ExecutiveSummary, RiskItem } from "@/types/risk";
-import { getTopRisks, getRiskTrends, getRiskSummary } from "./riskRepo";
+import { getTopRisks, getRiskTrends, getRiskSummary, getSupplierRisks, getBatteryPerformance, getBatteryReliability, getAlertTrends } from "./riskRepo";
 
 // Structured output schema for executive responses
 const ExecutiveAnswerSchema = z.object({
@@ -71,12 +71,18 @@ export async function askExecutive(
     toolResults.queryParams = riskResponse.queryParams;
   }
 
-  if (intent === "trends" || intent === "analysis") {
+  if (intent === "trends" || intent === "analysis" || intent === "alertTrends") {
     const trends = await getRiskTrends({
       region: params.region || execContext.region,
       days: params.days || execContext.days || 7,
     });
     toolResults.trends = trends;
+    
+    // Also get alert trends
+    const alertTrends = await getAlertTrends({
+      region: params.region || execContext.region,
+    });
+    toolResults.alertTrends = alertTrends;
   }
 
   if (intent === "summary" || intent === "overview") {
@@ -86,9 +92,32 @@ export async function askExecutive(
     toolResults.summary = summary;
   }
 
+  // Battery-specific intents
+  if (intent === "batteryPerformance") {
+    const batteryData = await getBatteryPerformance({
+      region: params.region || execContext.region,
+      health: params.health,
+    });
+    toolResults.batteryData = batteryData;
+  }
+
+  if (intent === "batteryReliability") {
+    const reliability = await getBatteryReliability();
+    toolResults.batteryReliability = reliability;
+  }
+
+  // Supplier risks
+  if (intent === "supplierRisks") {
+    const suppliers = await getSupplierRisks({
+      region: params.region || execContext.region,
+      limit: params.limit || 10,
+    });
+    toolResults.suppliers = suppliers;
+  }
+
   // If no specific intent, get comprehensive data
   if (!intent || intent === "general") {
-    const [riskResponse, trends, summary] = await Promise.all([
+    const [riskResponse, trends, summary, batteryData, suppliers] = await Promise.all([
       getTopRisks({
         region: execContext.region,
         days: execContext.days || 7,
@@ -101,8 +130,15 @@ export async function askExecutive(
       getRiskSummary({
         region: execContext.region,
       }),
+      getBatteryPerformance({
+        region: execContext.region,
+      }),
+      getSupplierRisks({
+        region: execContext.region,
+        limit: 5,
+      }),
     ]);
-    toolResults = { risks: riskResponse.risks, trends, summary };
+    toolResults = { risks: riskResponse.risks, trends, summary, batteryData, suppliers };
   }
 
   // Generate structured response using LLM
@@ -194,13 +230,31 @@ async function analyzeIntent(
   }
 
   // Trends / analysis
-  if (/trend|over time|history|pattern|analysis/i.test(question)) {
+  if (/trend|over time|history|pattern|analysis|alert/i.test(question)) {
     intent = "trends";
+    if (/alert/i.test(question)) {
+      intent = "alertTrends";
+    }
   }
 
   // Summary / overview
   if (/summary|overview|status|how many/i.test(question)) {
     intent = "summary";
+  }
+
+  // Battery performance
+  if (/battery.*performance|battery.*status|battery.*metric/i.test(question)) {
+    intent = "batteryPerformance";
+  }
+
+  // Battery reliability / health
+  if (/battery.*(reliability|health|condition)/i.test(question)) {
+    intent = "batteryReliability";
+  }
+
+  // Supplier risks
+  if (/supplier.*risk|vendor.*risk|supplier.*issue/i.test(question)) {
+    intent = "supplierRisks";
   }
 
   // Extract region if mentioned

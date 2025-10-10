@@ -6,74 +6,66 @@ import { Send, Mic, TrendingUp, AlertTriangle, Globe, Package, Battery, Zap, The
 const ExecutiveDashboard = () => {
   const [query, setQuery] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([
     {
       type: 'assistant',
-      content: 'Hello! I can help you analyze supply chain data. Try asking me about supplier risks, alert trends, or regional performance.'
+      content: 'Hello! I can help you analyze supply chain data. Try asking me about supplier risks, alert trends, battery performance, or regional insights.'
     }
   ]);
 
-  const mockResponses = {
-    'top 3 supplier risks': {
-      type: 'data',
-      content: 'Here are the top 3 supplier risks this week:',
-      data: [
-        { name: 'Acme Electronics Ltd', risk: 'High', issue: 'Port congestion delays', impact: '$2.3M' },
-        { name: 'Global Components Inc', risk: 'Medium', issue: 'Quality control issues', impact: '$890K' },
-        { name: 'Pacific Manufacturing', risk: 'Medium', issue: 'Labor shortage', impact: '$650K' }
-      ]
-    },
-    'battery performance': {
-      type: 'battery',
-      content: 'IoT Battery Performance Analysis:',
-      batteryData: [
-        { device: 'Temp Sensor A1', voltage: 3.2, capacity: 85, temperature: 23, cycles: 1250, health: 'Good', predictedLife: '8 months' },
-        { device: 'GPS Tracker B2', voltage: 2.9, capacity: 62, temperature: 31, cycles: 2890, health: 'Warning', predictedLife: '3 months' },
-        { device: 'Humidity Sensor C3', voltage: 3.4, capacity: 91, temperature: 19, cycles: 850, health: 'Excellent', predictedLife: '12 months' },
-        { device: 'Pressure Monitor D4', voltage: 2.7, capacity: 45, temperature: 38, cycles: 3200, health: 'Critical', predictedLife: '1 month' }
-      ]
-    },
-    'battery reliability': {
-      type: 'summary',
-      content: 'Battery Reliability Analysis Summary:',
-      summary: 'Current IoT device battery status across supply chain:\n\n• 67% of devices show optimal battery health (>80% capacity)\n• 23% require attention within next 6 months\n• 10% are in critical condition requiring immediate replacement\n• Average battery lifespan: 18 months under current conditions\n\nRecommendation: Prioritize replacement of GPS Tracker B2 and Pressure Monitor D4. Consider upgrading to newer battery technology for devices in high-temperature environments.'
-    },
-    'alert trends in asia': {
-      type: 'summary',
-      content: 'Alert Trends in Asia (Last 7 Days):',
-      summary: 'There has been a 23% increase in logistics alerts across Asia this week. Key drivers include:\n\n• Typhoon-related port closures in Southeast Asia (40% of alerts)\n• Semiconductor shortage affecting electronics suppliers (35%)\n• Increased customs inspection times in China (25%)\n\nRecommendation: Consider alternative routing through Singapore and diversify semiconductor suppliers.'
-    },
-    'default': {
-      type: 'summary',
-      content: 'Supply Chain Overview:',
-      summary: 'Based on current data, your supply chain is operating at 94% efficiency. There are 12 active alerts requiring attention, with 3 high-priority risks identified. Would you like me to provide more details on any specific area?'
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!query.trim()) return;
+    if (!query.trim() || loading) return;
 
-    setMessages(prev => [...prev, { type: 'user', content: query }]);
+    const userQuery = query;
+    setQuery('');
+    setMessages(prev => [...prev, { type: 'user', content: userQuery }]);
+    setLoading(true);
 
-    setTimeout(() => {
-      const lowerQuery = query.toLowerCase();
-      let response = mockResponses.default;
-      
-      if (lowerQuery.includes('top') && lowerQuery.includes('risk')) {
-        response = mockResponses['top 3 supplier risks'];
-      } else if (lowerQuery.includes('alert') && lowerQuery.includes('asia')) {
-        response = mockResponses['alert trends in asia'];
-      } else if (lowerQuery.includes('battery') && lowerQuery.includes('performance')) {
-        response = mockResponses['battery performance'];
-      } else if (lowerQuery.includes('battery') && (lowerQuery.includes('reliability') || lowerQuery.includes('health'))) {
-        response = mockResponses['battery reliability'];
+    try {
+      // Call the API
+      const response = await fetch('/api/query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: userQuery,
+          context: {}
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response');
       }
 
-      setMessages(prev => [...prev, { type: 'assistant', ...response }]);
-    }, 800);
+      const data = await response.json();
 
-    setQuery('');
+      if (data.success && data.result) {
+        // Transform API response to message format
+        const assistantMessage = {
+          type: 'assistant',
+          content: data.result.summary || 'Here are the results:',
+          data: data.result.data,
+          batteryData: data.result.batteryData,
+          summary: data.result.detailedSummary,
+          recommendations: data.result.recommendations
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Query error:', error);
+      setMessages(prev => [...prev, {
+        type: 'assistant',
+        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        summary: error.message
+      }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleVoiceInput = () => {
