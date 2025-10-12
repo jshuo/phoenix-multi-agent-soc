@@ -1,0 +1,26 @@
+{
+  "analysis_date": "2025-10-12T16:03:54.979688",
+  "total_samples": 25920,
+  "time_period_days": 90,
+  "noise_reduction": {
+    "original_variance": 0.0034751263485847217,
+    "filtered_variance": 0.001954607437510325,
+    "reduction_percent": 43.75434900931422
+  },
+  "degradation": {
+    "average_rate_per_sample": -5.35669520168042e-06,
+    "total_degradation": 0.17033745725603078,
+    "initial_voltage": 3.7375934461922333,
+    "final_voltage": 3.5672559889362025
+  },
+  "zscore_analysis": {
+    "metric": "voltage",
+    "value": 3.5672559889362025,
+    "mean": 3.660320444283855,
+    "std_dev": 0.042424694135322336,
+    "z_score": -2.1936388050507607,
+    "is_anomaly": true,
+    "severity": "warning",
+    "confidence": 0.9717386136244939
+  }
+}
