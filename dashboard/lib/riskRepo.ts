@@ -212,14 +212,51 @@ export async function getSupplierRisks(params: { region?: string; limit?: number
 }
 
 /**
- * Get battery performance data
+ * Get battery performance data with advanced analytics
+ * 
+ * This function now supports two modes:
+ * 1. SQL mode: Fetches data from database with Kalman filtering, Z-score analysis, and rule engine
+ * 2. Mock mode: Returns mock data for development/testing
+ * 
+ * Set USE_SQL_BATTERY_ANALYTICS=true in .env to enable SQL mode
  */
-export async function getBatteryPerformance(params: { region?: string; health?: string }) {
-  const { region, health } = params;
+export async function getBatteryPerformance(params: { 
+  region?: string; 
+  health?: string;
+  deviceId?: string;
+  useAdvancedAnalytics?: boolean;
+}) {
+  const { region, health, deviceId, useAdvancedAnalytics = false } = params;
   
+  // Check if SQL-based analytics should be used
+  const useSqlAnalytics = process.env.USE_SQL_BATTERY_ANALYTICS === 'true' || useAdvancedAnalytics;
+  
+  if (useSqlAnalytics) {
+    try {
+      // Import the advanced analytics module dynamically
+      const { getBatteryPerformance: getAdvancedBatteryPerformance } = await import('./batteryAnalytics');
+      
+      // Use the advanced analytics with Kalman filter, Z-score, and rule engine
+      return await getAdvancedBatteryPerformance({
+        region,
+        health,
+        deviceId,
+        applyKalman: true,      // Enable Kalman filter for noise reduction
+        applyZScore: true,      // Enable Z-score residual analysis
+        applyRules: true,       // Enable rule engine for alerts
+        limit: 100
+      });
+    } catch (error) {
+      console.warn('Failed to use advanced analytics, falling back to mock data:', error);
+      // Fall through to mock data
+    }
+  }
+  
+  // FALLBACK: Use mock data
   let filtered = MOCK_BATTERY_DATA.filter(battery => {
     if (region && battery.region !== region) return false;
     if (health && battery.health !== health) return false;
+    if (deviceId && battery.device !== deviceId) return false;
     return true;
   });
 
@@ -230,7 +267,15 @@ export async function getBatteryPerformance(params: { region?: string; health?: 
       healthyDevices: MOCK_BATTERY_DATA.filter(b => b.health === 'Excellent' || b.health === 'Good').length,
       warningDevices: MOCK_BATTERY_DATA.filter(b => b.health === 'Warning').length,
       criticalDevices: MOCK_BATTERY_DATA.filter(b => b.health === 'Critical').length,
-      avgCapacity: Math.round(MOCK_BATTERY_DATA.reduce((sum, b) => sum + b.capacity, 0) / MOCK_BATTERY_DATA.length)
+      avgCapacity: Math.round(MOCK_BATTERY_DATA.reduce((sum, b) => sum + b.capacity, 0) / MOCK_BATTERY_DATA.length),
+      totalAlerts: 0,
+      criticalAlerts: 0
+    },
+    analytics: {
+      kalmanFilterApplied: false,
+      zScoreAnalysisApplied: false,
+      rulesEvaluated: 0,
+      anomaliesDetected: 0
     },
     timestamp: new Date().toISOString()
   };
