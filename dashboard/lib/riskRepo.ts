@@ -78,7 +78,7 @@ const MOCK_SUPPLIER_RISKS = [
 // Mock data for IoT battery performance
 const MOCK_BATTERY_DATA = [
   { device: 'Temp Sensor A1', voltage: 3.2, capacity: 85, temperature: 23, cycles: 1250, health: 'Good', predictedLife: '8 months', region: 'North America' },
-  { device: 'GPS Tracker B2', voltage: 2.9, capacity: 62, temperature: 31, cycles: 2890, health: 'Warning', predictedLife: '3 months', region: 'Asia-Pacific' },
+  { device: 'GPS Tracker B2', voltage: 2.9, capacity: 35, temperature: 31, cycles: 2890, health: 'Warning', predictedLife: '3 months', region: 'Asia-Pacific' },  // ⚠️ Capacity dropped from 62% to 35% - will trigger Z-score anomaly!
   { device: 'Humidity Sensor C3', voltage: 3.4, capacity: 91, temperature: 19, cycles: 850, health: 'Excellent', predictedLife: '12 months', region: 'Asia-Pacific' },
   { device: 'Pressure Monitor D4', voltage: 2.7, capacity: 45, temperature: 38, cycles: 3200, health: 'Critical', predictedLife: '1 month', region: 'Europe' }
 ];
@@ -283,13 +283,27 @@ export async function getBatteryPerformance(params: {
         const voltageNoise = 0.15; // ±0.15V noise
         const capacityNoise = 3.0;   // ±3% noise
         
+        // 🔥 SPECIAL CASE: GPS Tracker B2 - Simulate sudden capacity drop (anomaly)
+        const isAnomalousDevice = device.device === 'GPS Tracker B2';
+        
         const voltageHistory = Array.from({ length: numSamples }, (_, i) => 
           baseVoltage + (Math.random() - 0.5) * voltageNoise
         );
         
-        const capacityHistory = Array.from({ length: numSamples }, (_, i) => 
-          baseCapacity + (Math.random() - 0.5) * capacityNoise
-        );
+        // For GPS Tracker B2: Generate capacity history with sudden drop
+        const capacityHistory = Array.from({ length: numSamples }, (_, i) => {
+          if (isAnomalousDevice) {
+            // Historical capacity was normal (around 62%), but suddenly dropped to 35%
+            if (i < numSamples - 1) {
+              // Past 14 measurements: normal capacity around 62%
+              return 62 + (Math.random() - 0.5) * capacityNoise;
+            } else {
+              // Most recent measurement: sudden drop to 35% (ANOMALY!)
+              return baseCapacity + (Math.random() - 0.5) * capacityNoise;
+            }
+          }
+          return baseCapacity + (Math.random() - 0.5) * capacityNoise;
+        });
         
         // Apply Kalman filter
         const filteredVoltages = applyKalmanFilter(voltageHistory, 0.01, 0.1);

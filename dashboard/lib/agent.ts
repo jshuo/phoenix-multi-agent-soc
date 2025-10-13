@@ -168,6 +168,7 @@ Guidelines:
 - Highlight critical issues (score >= 80) first
 - Explain technical metrics in business terms
 - Always include specific asset IDs and regions
+- use Markdown formatting for clarity
 - Provide timeline estimates for predicted failures`;
 
   const userPrompt = `Question: ${question}

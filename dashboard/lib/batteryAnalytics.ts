@@ -315,6 +315,15 @@ export function analyzeZScore(
     severity = 'warning';   // >2 std devs (95% confidence)
   }
   
+  // 📊 Log Z-score analysis
+  console.log(`[Z-Score Analysis] Device: ${deviceId} | Metric: ${metric}`);
+  console.log(`  Current value: ${value.toFixed(2)}`);
+  console.log(`  Historical mean: ${mean.toFixed(2)} (±${stdDev.toFixed(2)} std dev)`);
+  console.log(`  Z-Score: ${zScore.toFixed(3)} | Severity: ${severity.toUpperCase()}`);
+  if (absZScore > threshold) {
+    console.log(`  ⚠️  ANOMALY DETECTED! |Z| = ${absZScore.toFixed(3)} > ${threshold}`);
+  }
+  
   return {
     deviceId,
     metric,
