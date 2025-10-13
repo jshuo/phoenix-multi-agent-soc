@@ -10,6 +10,7 @@
  */
 
 import { Pool } from 'pg';
+import { KalmanFilter } from 'kalman-filter';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -120,7 +121,7 @@ const pool = new Pool({
 });
 
 // ============================================================================
-// KALMAN FILTER IMPLEMENTATION
+// KALMAN FILTER IMPLEMENTATION (using kalman-filter library)
 // ============================================================================
 
 /**
@@ -175,11 +176,11 @@ export function updateKalmanFilter(
 }
 
 /**
- * Apply Kalman filter to a time series of measurements
+ * Apply Kalman filter to a time series of measurements using kalman-filter library
  * 
  * @param measurements - Array of measurement values
- * @param processNoise - Q parameter
- * @param measurementNoise - R parameter
+ * @param processNoise - Q parameter (process noise covariance)
+ * @param measurementNoise - R parameter (measurement noise covariance)
  * @returns Array of filtered values
  */
 export function applyKalmanFilter(
@@ -187,17 +188,57 @@ export function applyKalmanFilter(
   processNoise: number = 0.01,
   measurementNoise: number = 0.1
 ): number[] {
-  if (measurements.length === 0) return [];
-  
-  let state = initKalmanFilter(measurements[0], processNoise, measurementNoise);
-  const filtered: number[] = [state.x];
-  
-  for (let i = 1; i < measurements.length; i++) {
-    state = updateKalmanFilter(state, measurements[i]);
-    filtered.push(state.x);
+  if (measurements.length === 0) {
+    console.log('[Kalman Filter] Empty measurements array, returning empty result');
+    return [];
   }
   
-  return filtered;
+  console.log('[Kalman Filter] Starting filtering process');
+  console.log(`[Kalman Filter] Input: ${measurements.length} measurements`);
+  console.log(`[Kalman Filter] Parameters: Q=${processNoise}, R=${measurementNoise}`);
+  console.log(`[Kalman Filter] First measurement: ${measurements[0]}, Last: ${measurements[measurements.length - 1]}`);
+  
+  // Configure Kalman filter for 1D scalar tracking
+  // The library expects observations as arrays of arrays for multi-dimensional support
+  const kf = new KalmanFilter({
+    observation: {
+      name: 'sensor',
+      sensorDimension: 1,  // 1D measurement
+      dimension: 1          // 1D state
+    },
+    dynamic: {
+      name: 'constant-position',  // Constant position model (no velocity/acceleration)
+      dimension: 1                 // 1D state
+    },
+    observationCovariance: [[measurementNoise]], // R: measurement noise
+    dynamicCovariance: [[processNoise]]          // Q: process noise
+  });
+  
+  console.log('[Kalman Filter] Filter configuration created');
+  
+  // Convert measurements to the format expected by the library
+  const observationsArray = measurements.map(m => [m]);
+  
+  // Apply the filter to all measurements
+  const filtered = kf.filterAll(observationsArray);
+  
+  console.log('[Kalman Filter] Filtering complete');
+  
+  // Convert back to simple array of numbers
+  const result = filtered.map(f => f[0]);
+  
+  // Calculate and log statistics
+  const originalMean = measurements.reduce((sum, v) => sum + v, 0) / measurements.length;
+  const filteredMean = result.reduce((sum, v) => sum + v, 0) / result.length;
+  const noiseReduction = Math.abs(originalMean - filteredMean);
+  
+  console.log(`[Kalman Filter] Original mean: ${originalMean.toFixed(4)}`);
+  console.log(`[Kalman Filter] Filtered mean: ${filteredMean.toFixed(4)}`);
+  console.log(`[Kalman Filter] Noise reduction: ${noiseReduction.toFixed(4)}`);
+  console.log(`[Kalman Filter] Output: ${result.length} filtered values`);
+  console.log(`[Kalman Filter] First filtered: ${result[0].toFixed(4)}, Last: ${result[result.length - 1].toFixed(4)}`);
+  
+  return result;
 }
 
 // ============================================================================
@@ -588,15 +629,24 @@ export async function getBatteryPerformance(params: {
       processedData.rawCapacity = latestData.capacity;
       
       if (applyKalman && telemetryArray.length > 1) {
+        console.log(`\n[Battery Analytics] Processing device: ${deviceId}`);
+        console.log(`[Battery Analytics] Time series length: ${telemetryArray.length} samples`);
+        
         // Apply Kalman filter to voltage
+        console.log(`[Battery Analytics] Applying Kalman filter to VOLTAGE data`);
         const voltages = telemetryArray.map(t => t.voltage);
         const filteredVoltages = applyKalmanFilter(voltages, 0.01, 0.1);
         processedData.voltage = filteredVoltages[filteredVoltages.length - 1];
+        console.log(`[Battery Analytics] Voltage - Raw: ${latestData.voltage.toFixed(3)}V → Filtered: ${processedData.voltage.toFixed(3)}V`);
         
         // Apply Kalman filter to capacity
+        console.log(`[Battery Analytics] Applying Kalman filter to CAPACITY data`);
         const capacities = telemetryArray.map(t => t.capacity);
         const filteredCapacities = applyKalmanFilter(capacities, 0.005, 0.05);
         processedData.capacity = filteredCapacities[filteredCapacities.length - 1];
+        console.log(`[Battery Analytics] Capacity - Raw: ${latestData.capacity.toFixed(1)}% → Filtered: ${processedData.capacity.toFixed(1)}%`);
+      } else if (applyKalman) {
+        console.log(`[Battery Analytics] Skipping Kalman filter for device ${deviceId} - insufficient data (only ${telemetryArray.length} sample)`);
       }
       
       // ======================================================================
@@ -703,6 +753,23 @@ export async function getBatteryPerformance(params: {
           processedDevices.reduce((sum, d) => sum + d.capacity, 0) / totalDevices
         )
       : 0;
+    
+    // Log summary
+    console.log('\n[Battery Analytics] ========================================');
+    console.log('[Battery Analytics] PROCESSING COMPLETE');
+    console.log('[Battery Analytics] ========================================');
+    console.log(`[Battery Analytics] Total devices processed: ${totalDevices}`);
+    console.log(`[Battery Analytics] Healthy devices: ${healthyDevices}`);
+    console.log(`[Battery Analytics] Warning devices: ${warningDevices}`);
+    console.log(`[Battery Analytics] Critical devices: ${criticalDevices}`);
+    console.log(`[Battery Analytics] Average capacity: ${avgCapacity}%`);
+    console.log(`[Battery Analytics] Total alerts: ${totalAlertCount}`);
+    console.log(`[Battery Analytics] Critical alerts: ${criticalAlertCount}`);
+    console.log(`[Battery Analytics] Anomalies detected: ${totalAnomalies}`);
+    console.log(`[Battery Analytics] Kalman filter applied: ${applyKalman ? 'YES' : 'NO'}`);
+    console.log(`[Battery Analytics] Z-score analysis applied: ${applyZScore ? 'YES' : 'NO'}`);
+    console.log(`[Battery Analytics] Rules evaluated: ${BATTERY_ALERT_RULES.length}`);
+    console.log('[Battery Analytics] ========================================\n');
     
     return {
       devices: processedDevices,

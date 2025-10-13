@@ -456,6 +456,13 @@ const ExecutiveDashboard = () => {
                                 <div className="flex items-center gap-2 mb-1">
                                   <Zap className="w-3 h-3 text-yellow-400" />
                                   <span className="text-xs text-slate-400">Voltage</span>
+                                  {battery.voltageZScore !== undefined && (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
+                                      Math.abs(battery.voltageZScore) > 2 ? 'bg-red-500/20 text-red-300' :
+                                      Math.abs(battery.voltageZScore) > 1 ? 'bg-amber-500/20 text-amber-300' :
+                                      'bg-green-500/20 text-green-300'
+                                    }`}>Z:{battery.voltageZScore.toFixed(2)}</span>
+                                  )}
                                 </div>
                                 <div className="text-lg font-bold text-white">{battery.voltage}V</div>
                               </div>
@@ -473,6 +480,20 @@ const ExecutiveDashboard = () => {
                               <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30">
                                 <div className="flex items-center gap-2 mb-1">
                                   <Activity className="w-3 h-3 text-cyan-400" />
+                                  <span className="text-xs text-slate-400">Capacity</span>
+                                  {battery.capacityZScore !== undefined && (
+                                    <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
+                                      Math.abs(battery.capacityZScore) > 2 ? 'bg-red-500/20 text-red-300' :
+                                      Math.abs(battery.capacityZScore) > 1 ? 'bg-amber-500/20 text-amber-300' :
+                                      'bg-green-500/20 text-green-300'
+                                    }`}>Z:{battery.capacityZScore.toFixed(2)}</span>
+                                  )}
+                                </div>
+                                <div className="text-lg font-bold text-white">{battery.capacity}%</div>
+                              </div>
+                              <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Activity className="w-3 h-3 text-cyan-400" />
                                   <span className="text-xs text-slate-400">Charge Cycles</span>
                                 </div>
                                 <div className="text-lg font-bold text-white">{battery.cycles || battery.chargeCycles}</div>
@@ -486,7 +507,40 @@ const ExecutiveDashboard = () => {
                               </div>
                             </div>
                             
-                            {(battery.health === 'Critical' || battery.health === 'Warning') && (
+                            {/* Z-Score Anomaly Alerts */}
+                            {battery.alerts && battery.alerts.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                {battery.alerts.map((alert, alertIdx) => (
+                                  <div key={alertIdx} className={`p-3 rounded-lg border ${
+                                    alert.severity === 'critical' ? 'bg-red-500/10 border-red-500/30' :
+                                    alert.severity === 'warning' ? 'bg-amber-500/10 border-amber-500/30' :
+                                    'bg-blue-500/10 border-blue-500/30'
+                                  }`}>
+                                    <div className="flex items-start gap-2">
+                                      <AlertTriangle className={`w-4 h-4 mt-0.5 ${
+                                        alert.severity === 'critical' ? 'text-red-400' :
+                                        alert.severity === 'warning' ? 'text-amber-400' :
+                                        'text-blue-400'
+                                      }`} />
+                                      <div className="flex-1">
+                                        <div className={`text-xs font-semibold mb-1 ${
+                                          alert.severity === 'critical' ? 'text-red-300' :
+                                          alert.severity === 'warning' ? 'text-amber-300' :
+                                          'text-blue-300'
+                                        }`}>
+                                          {alert.message}
+                                        </div>
+                                        {alert.recommendation && (
+                                          <div className="text-xs text-slate-400">{alert.recommendation}</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {(battery.health === 'Critical' || battery.health === 'Warning') && (!battery.alerts || battery.alerts.length === 0) && (
                               <div className={`mt-3 p-3 rounded-lg border ${
                                 battery.health === 'Critical' 
                                   ? 'bg-red-500/10 border-red-500/30' 

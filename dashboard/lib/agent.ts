@@ -97,9 +97,11 @@ export async function askExecutive(
 
   // Battery-specific intents
   if (intent === "batteryPerformance") {
+    console.log('[Agent] Fetching battery performance with Kalman filter enabled');
     const batteryData = await getBatteryPerformance({
       region: params.region || execContext.region,
       health: params.health,
+      useAdvancedAnalytics: true,  // Enable Kalman filter and advanced analytics
     });
     toolResults.batteryData = batteryData;
   }
@@ -120,6 +122,7 @@ export async function askExecutive(
 
   // If no specific intent, get comprehensive data
   if (!intent || intent === "general") {
+    console.log('[Agent] Fetching comprehensive data with Kalman filter enabled');
     const [riskResponse, trends, summary, batteryData, suppliers] = await Promise.all([
       getTopRisks({
         region: execContext.region,
@@ -135,6 +138,7 @@ export async function askExecutive(
       }),
       getBatteryPerformance({
         region: execContext.region,
+        useAdvancedAnalytics: true,  // Enable Kalman filter and advanced analytics
       }),
       getSupplierRisks({
         region: execContext.region,
@@ -251,7 +255,7 @@ async function analyzeIntent(
   }
 
   // Battery performance
-  if (/battery.*performance|battery.*status|battery.*metric/i.test(question)) {
+  if (/battery.*performance|battery.*status|battery.*metric|battery.*analysis|iot.*battery/i.test(question)) {
     intent = "batteryPerformance";
   }
 
