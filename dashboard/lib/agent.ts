@@ -163,20 +163,111 @@ ${execContext.region ? `- Focus region: ${execContext.region}` : "- Global analy
 ${execContext.days ? `- Time window: ${execContext.days} days` : ""}
 ${execContext.userRole ? `- User role: ${execContext.userRole}` : ""}
 
-Guidelines:
-- Be concise but comprehensive
-- Highlight critical issues (score >= 80) first
-- Explain technical metrics in business terms
-- Always include specific asset IDs and regions
-- use Markdown formatting for clarity
-- Provide timeline estimates for predicted failures`;
+
+CRITICAL: OUTPUT MUST USE MARKDOWN FORMATTING
+
+Your summary MUST be formatted with proper markdown syntax for rich display:
+
+REQUIRED MARKDOWN ELEMENTS:
+1. **Bold text** for all key metrics, numbers, percentages, device names, regions
+   - Examples: **4 devices**, **64%**, **7 alerts**, **GPS Tracker B2**, **Asia-Pacific**
+   
+2. *Italic text* for emphasis on important terms
+   - Examples: *immediate attention*, *critical priority*, *recommended action*
+   
+3. Line breaks for paragraph separation
+   - Use double newlines between paragraphs for proper spacing
+   
+4. Bullet points for lists (use - or • with proper indentation)
+   - Example:
+   - Critical devices: **GPS Tracker B2** (Asia-Pacific), **Pressure Monitor D4** (Europe)
+   - Warning devices: **Temp Sensor A1** (North America)
+   
+5. Numbered lists for sequential steps or priorities
+   - Example:
+   1. Replace **Pressure Monitor D4** immediately
+   2. Schedule maintenance for **GPS Tracker B2**
+   
+6. Emojis for visual indicators (use strategically, not excessively)
+   - 🔴 for critical/urgent issues
+   - 🟡 for warnings
+   - ✅ for healthy/resolved status
+   - 🚨 for critical alerts
+   - ⚠️ for warnings/caution
+   - 📊 for analytics/data
+   - 💡 for recommendations
+   - 🔋 for battery-related items
+
+7. Horizontal rules (---) to separate major sections when appropriate
+
+RESPONSE STRUCTURE (DETAILED AND COMPREHENSIVE):
+
+**Opening Paragraph (2-3 sentences):**
+Start with a high-level summary including total device count, regional distribution, health status breakdown, and overall severity assessment. Use specific numbers and be business-friendly.
+
+Example: "The IoT battery performance analysis reveals **critical issues** with certain devices across **Asia-Pacific** and **Europe** regions. Out of **4 devices** analyzed, **2 are ✅ healthy**, **1 in 🟡 warning state**, and **1 in 🔴 critical state**. Average battery capacity stands at **64%**, with **7 total alerts** issued, including **1 🚨 critical alert** requiring *immediate attention*."
+
+**Key Statistics Section:**
+Use bullet points to list:
+- Total devices analyzed: **X devices** across **Y regions**
+- Health distribution: **X healthy** ✅, **Y warning** 🟡, **Z critical** 🔴
+- Average battery capacity: **XX%**
+- Total alerts: **X alerts** (including **Y critical alerts** 🚨)
+- Anomalies detected: **X devices** showing abnormal patterns
+
+**Critical Issues Section (if any):**
+For each critical device, provide:
+🔴 **Device Name** (Region)
+- Status: *Critical*
+- Battery capacity: **XX%** (with context like "dropped from YY%")
+- Key issues: Specific technical problems explained in business terms
+- Impact: Business consequence (e.g., "Risk of operational failure")
+- Action: *Immediate replacement required* or specific timeline
+
+**Warning Issues Section (if any):**
+For each warning device, provide:
+🟡 **Device Name** (Region)
+- Status: *Warning*
+- Battery capacity: **XX%**
+- Concerns: Specific degradation patterns
+- Recommendation: *Schedule maintenance within X days*
+
+**Healthy Devices (brief mention):**
+✅ **Device Name** and **Device Name** are operating normally with capacity above **80%**.
+
+---
+
+**Analysis Methods Applied:**
+📊 List the analytical techniques used:
+- Kalman Filter for noise reduction
+- Z-Score analysis for anomaly detection  
+- Alert rule evaluation (**X rules** evaluated)
+- Statistical trend analysis
+
+**Recommendations:**
+Use numbered list with specific, actionable items:
+1. **Immediate action:** Replace [Device Name] to prevent operational failure
+2. **Priority (48 hours):** Schedule replacement for [Device Name]
+3. **Monitor:** Continue tracking [Device Names] for degradation
+4. **Review:** Investigate root cause of capacity drop in [Region]
+
+DO NOT:
+- Use markdown headers with # symbols (no # ## ### ####)
+- Use code blocks or backticks for inline code
+- Write plain text without any markdown formatting
+- List raw data without bold formatting
+- Skip line breaks between paragraphs
+- Be too brief - provide comprehensive details with specific numbers
+- Use technical jargon without business context
+
+REMEMBER: Executives need detailed, specific information with business impact. Every metric should be bolded. Every device should be named. Every recommendation should be actionable with timelines.`;
 
   const userPrompt = `Question: ${question}
 
 Available Data:
 ${JSON.stringify(toolResults, null, 2)}
 
-Provide a structured executive summary addressing this question.`;
+Provide a comprehensive, detailed executive summary with rich markdown formatting. Include specific device names, regions, metrics, and actionable insights. Be thorough and business-focused.`;
 
   try {
     const structuredLlm = llm.withStructuredOutput(ExecutiveAnswerSchema, {
@@ -191,7 +282,7 @@ Provide a structured executive summary addressing this question.`;
     return {
       summary: response.summary,
       data: response.data as RiskItem[],
-      trends: response.trends,
+      trends: response.trends as any,
       sources: response.sources || ["Risk Repository", "IoT Device Monitoring"],
       recommendations: response.recommendations,
     };

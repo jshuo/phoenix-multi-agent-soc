@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  analytics-service:
+    build: .
+    container_name: battery-analytics
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=supply_chain_iot
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - SERVICE_PORT=8000
+      - DEBUG=True
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - analytics-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    environment:
+      - POSTGRES_DB=supply_chain_iot
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - analytics-network
+    restart: unless-stopped
+
+networks:
+  analytics-network:
+    driver: bridge
+
+volumes:
+  postgres-data:

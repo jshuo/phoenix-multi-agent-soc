@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Send, Mic, TrendingUp, AlertTriangle, Globe, Package, Battery, Zap, Thermometer, Activity } from 'lucide-react';
+import { useState } from 'react';
+import { Send, Mic, TrendingUp, AlertTriangle, Package, Globe, Battery, Zap, Thermometer, Activity } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const ExecutiveDashboard = () => {
   const [query, setQuery] = useState('');
@@ -210,6 +212,7 @@ const ExecutiveDashboard = () => {
                       )}
                       
                       {/* Main Content with Enhanced Typography */}
+                      {/* Message content with markdown support */}
                       <div className={`
                         text-base leading-relaxed
                         ${msg.type === 'user' 
@@ -218,77 +221,30 @@ const ExecutiveDashboard = () => {
                         }
                         ${msg.content.length > 200 ? 'text-sm' : 'text-base'}
                       `}>
-                        {/* Parse and format content with special handling */}
-                        {msg.content.split('\n').map((line, lineIdx) => {
-                          // Check if line contains special markers
-                          const isHeader = line.match(/^(Analysis|Summary|Overview|Status):/i);
-                          const isBullet = line.trim().startsWith('•') || line.trim().startsWith('-');
-                          const isWarning = line.includes('⚠️') || line.toLowerCase().includes('critical') || line.toLowerCase().includes('urgent');
-                          const isSuccess = line.includes('✓') || line.includes('✅');
-                          const hasPercentage = line.match(/\d+%/);
-                          const hasNumber = line.match(/^\d+\./);
-                          
-                          if (line.trim() === '') {
-                            return <div key={lineIdx} className="h-2"></div>;
-                          }
-                          
-                          return (
-                            <div key={lineIdx} className={`
-                              ${lineIdx > 0 ? 'mt-2' : ''}
-                              ${isHeader ? 'font-semibold text-blue-300 mt-3 mb-1 text-base' : ''}
-                              ${isBullet ? 'pl-4 flex items-start gap-2' : ''}
-                              ${isWarning ? 'text-amber-200 font-medium' : ''}
-                              ${isSuccess ? 'text-green-300' : ''}
-                              ${hasNumber ? 'flex items-start gap-2' : ''}
-                            `}>
-                              {/* Special formatting for different line types */}
-                              {isBullet && (
-                                <span className="text-blue-400 flex-shrink-0 mt-1">•</span>
-                              )}
-                              {hasNumber && !isBullet && (
-                                <span className="text-blue-400 font-semibold flex-shrink-0">{line.match(/^\d+\./)?.[0]}</span>
-                              )}
-                              
-                              {/* Highlight important terms */}
-                              <span className="flex-1">
-                                {line.split(/(\d+%|\$[\d,]+[KMB]?|\d+\s+(?:risks?|alerts?|devices?|suppliers?))/gi).map((part, partIdx) => {
-                                  // Percentage highlighting
-                                  if (part.match(/\d+%/)) {
-                                    const num = parseInt(part);
-                                    return (
-                                      <span key={partIdx} className={`
-                                        font-bold px-1.5 py-0.5 rounded
-                                        ${num >= 80 ? 'bg-red-500/20 text-red-300' :
-                                          num >= 60 ? 'bg-amber-500/20 text-amber-300' :
-                                          num >= 40 ? 'bg-blue-500/20 text-blue-300' :
-                                          'bg-green-500/20 text-green-300'}
-                                      `}>
-                                        {part}
-                                      </span>
-                                    );
-                                  }
-                                  // Money highlighting
-                                  if (part.match(/\$[\d,]+[KMB]?/)) {
-                                    return (
-                                      <span key={partIdx} className="font-bold text-green-300 bg-green-500/10 px-1.5 py-0.5 rounded">
-                                        {part}
-                                      </span>
-                                    );
-                                  }
-                                  // Count highlighting (risks, alerts, devices, suppliers)
-                                  if (part.match(/\d+\s+(?:risks?|alerts?|devices?|suppliers?)/i)) {
-                                    return (
-                                      <span key={partIdx} className="font-semibold text-cyan-300">
-                                        {part}
-                                      </span>
-                                    );
-                                  }
-                                  return <span key={partIdx}>{part}</span>;
-                                })}
-                              </span>
-                            </div>
-                          );
-                        })}
+                        {/* Render markdown for assistant messages, plain text for user */}
+                        {msg.type === 'assistant' ? (
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              // Style for bold text
+                              strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
+                              // Style for italic text
+                              em: ({node, ...props}) => <em className="italic text-blue-300" {...props} />,
+                              // Style for lists
+                              ul: ({node, ...props}) => <ul className="list-disc list-inside space-y-1 my-2" {...props} />,
+                              ol: ({node, ...props}) => <ol className="list-decimal list-inside space-y-1 my-2" {...props} />,
+                              li: ({node, ...props}) => <li className="text-slate-200 ml-2" {...props} />,
+                              // Style for paragraphs
+                              p: ({node, ...props}) => <p className="mb-3 last:mb-0" {...props} />,
+                              // Style for horizontal rules
+                              hr: ({node, ...props}) => <hr className="my-4 border-slate-600" {...props} />,
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        ) : (
+                          msg.content
+                        )}
                       </div>
                       
                       {/* Visual separator if there's more content below */}
