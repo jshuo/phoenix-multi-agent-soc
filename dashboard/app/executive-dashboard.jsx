@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, Mic, TrendingUp, AlertTriangle, Package, Globe, Battery, Zap, Thermometer, Activity } from 'lucide-react';
+import { Send, Mic, TrendingUp, AlertTriangle, Package, Globe, Battery, Zap, Thermometer, Activity, Cloud, Droplets, Wind } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getCityNameForRegion } from '@/lib/weather';
 
 const ExecutiveDashboard = () => {
   const [query, setQuery] = useState('');
@@ -51,6 +52,7 @@ const ExecutiveDashboard = () => {
           content: data.result.summary || 'Here are the results:',
           data: data.result.data,
           batteryData: data.result.batteryData,
+          weatherData: data.result.weatherData,
           summary: data.result.detailedSummary,
           recommendations: data.result.recommendations
         };
@@ -248,10 +250,110 @@ const ExecutiveDashboard = () => {
                       </div>
                       
                       {/* Visual separator if there's more content below */}
-                      {(msg.data?.length > 0 || msg.batteryData?.length > 0 || msg.recommendations?.length > 0 || msg.summary) && (
+                      {(msg.data?.length > 0 || msg.batteryData?.length > 0 || msg.weatherData || msg.recommendations?.length > 0 || msg.summary) && (
                         <div className="mt-4 pt-4 border-t border-slate-700/30"></div>
                       )}
                     </div>
+                    
+                    {/* Weather Data Cards - Show before battery data */}
+                    {msg.weatherData && Object.keys(msg.weatherData).length > 0 && (
+                      <div className="mt-5 space-y-3">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Cloud className="w-4 h-4 text-sky-400" />
+                          <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">City Weather Conditions</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {Object.entries(msg.weatherData).map(([region, weather]) => {
+                            // Get city name from region or extract from location string
+                            const cityName = getCityNameForRegion(region) || weather.location?.split(',')[0] || region;
+                            return (
+                            <div key={region} className="bg-gradient-to-br from-sky-900/30 to-blue-900/30 rounded-xl p-4 border border-sky-700/50 hover:border-sky-600 transition-all hover:shadow-lg hover:shadow-sky-900/50">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Globe className="w-4 h-4 text-sky-400" />
+                                <div className="font-bold text-white text-sm">{cityName}</div>
+                              </div>
+                              
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <Thermometer className={`w-5 h-5 ${
+                                    weather.temperature > 30 ? 'text-red-400' :
+                                    weather.temperature > 20 ? 'text-amber-400' :
+                                    'text-blue-400'
+                                  }`} />
+                                  <span className={`text-2xl font-bold ${
+                                    weather.temperature > 30 ? 'text-red-400' :
+                                    weather.temperature > 20 ? 'text-amber-400' :
+                                    'text-blue-400'
+                                  }`}>
+                                    {weather.temperature?.toFixed(1)}°C
+                                  </span>
+                                </div>
+                                <div className="text-xs text-slate-300 bg-slate-800/50 px-2 py-1 rounded">
+                                  {weather.conditions}
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                {weather.humidity !== null && weather.humidity !== undefined && (
+                                  <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/30">
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <Droplets className="w-3 h-3 text-cyan-400" />
+                                      <span className="text-slate-400">Humidity</span>
+                                    </div>
+                                    <div className="text-white font-semibold">{weather.humidity}%</div>
+                                  </div>
+                                )}
+                                {weather.windSpeed !== null && weather.windSpeed !== undefined && (
+                                  <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/30">
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <Wind className="w-3 h-3 text-slate-400" />
+                                      <span className="text-slate-400">Wind</span>
+                                    </div>
+                                    <div className="text-white font-semibold">{weather.windSpeed?.toFixed(1)} km/h</div>
+                                  </div>
+                                )}
+                                {weather.precipitation !== null && weather.precipitation !== undefined && (
+                                  <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/30">
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <Droplets className="w-3 h-3 text-blue-400" />
+                                      <span className="text-slate-400">Rain</span>
+                                    </div>
+                                    <div className="text-white font-semibold">{weather.precipitation} mm</div>
+                                  </div>
+                                )}
+                                {weather.pressure !== null && weather.pressure !== undefined && (
+                                  <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/30">
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <Activity className="w-3 h-3 text-purple-400" />
+                                      <span className="text-slate-400">Pressure</span>
+                                    </div>
+                                    <div className="text-white font-semibold">{weather.pressure} hPa</div>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {weather.location && (
+                                <div className="mt-2 text-xs text-slate-500 truncate">
+                                  📍 {weather.location}
+                                </div>
+                              )}
+                            </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {/* Weather Impact Note */}
+                        <div className="bg-sky-900/10 border border-sky-700/30 rounded-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <Cloud className="w-4 h-4 text-sky-400 mt-0.5" />
+                            <div className="text-xs text-slate-300">
+                              <span className="font-semibold text-sky-300">Environmental Impact:</span> High temperatures 
+                              ({">"} 30°C) can accelerate battery degradation and reduce capacity. Monitor devices in hot regions closely.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Risk/Supplier Data Cards */}
                     {msg.data && msg.data.length > 0 && (
@@ -269,10 +371,10 @@ const ExecutiveDashboard = () => {
                                 </div>
                                 <div>
                                   <div className="font-bold text-white text-base">{item.assetId || item.name}</div>
-                                  {item.region && (
+                                  {(item.city || item.region) && (
                                     <div className="flex items-center gap-1 mt-1">
                                       <Globe className="w-3 h-3 text-slate-400" />
-                                      <span className="text-xs text-slate-400">{item.region}</span>
+                                      <span className="text-xs text-slate-400">{item.city || item.region}</span>
                                     </div>
                                   )}
                                 </div>
@@ -369,10 +471,10 @@ const ExecutiveDashboard = () => {
                                 </div>
                                 <div>
                                   <div className="font-bold text-white text-base">{battery.device || battery.deviceId}</div>
-                                  {battery.region && (
+                                  {(battery.city || battery.region) && (
                                     <div className="flex items-center gap-1 mt-1">
                                       <Globe className="w-3 h-3 text-slate-400" />
-                                      <span className="text-xs text-slate-400">{battery.region}</span>
+                                      <span className="text-xs text-slate-400">{battery.city || battery.region}</span>
                                     </div>
                                   )}
                                 </div>

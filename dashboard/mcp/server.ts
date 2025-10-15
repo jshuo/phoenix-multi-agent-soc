@@ -12,6 +12,7 @@ import {
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { getTopRisks, getRiskById, getRiskTrends, getRiskSummary, getSupplierRisks, getBatteryPerformance, getBatteryReliability, getAlertTrends } from "../lib/riskRepo.js";
+import { getWeatherForRegion, getRegionalWeather } from "../lib/weather.js";
 
 /**
  * Define available tools
@@ -115,7 +116,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "getBatteryPerformance",
-    description: "Get IoT device battery performance metrics including voltage, capacity, temperature, and health status",
+    description: "Get IoT device battery performance metrics including voltage, capacity, temperature, and health status. Automatically includes weather data (temperature, humidity, conditions) for each region to help correlate environmental factors with battery performance.",
     inputSchema: {
       type: "object",
       properties: {
@@ -150,6 +151,37 @@ const TOOLS: Tool[] = [
           description: "Region to analyze (e.g., 'Asia-Pacific', 'Europe')",
         },
       },
+    },
+  },
+  {
+    name: "getWeatherForRegion",
+    description: "Get current weather data for a specific region. Returns temperature, humidity, precipitation, wind speed, and weather conditions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        region: {
+          type: "string",
+          description: "Region name (e.g., 'Asia-Pacific', 'Europe', 'North America', 'South America', 'Africa', 'Middle East')",
+        },
+      },
+      required: ["region"],
+    },
+  },
+  {
+    name: "getRegionalWeather",
+    description: "Get current weather data for multiple regions at once",
+    inputSchema: {
+      type: "object",
+      properties: {
+        regions: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: "Array of region names to fetch weather for",
+        },
+      },
+      required: ["regions"],
     },
   },
 ];
@@ -272,6 +304,36 @@ export function createMCPServer() {
 
         case "getAlertTrends": {
           const result = await getAlertTrends(args || {});
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "getWeatherForRegion": {
+          if (!args?.region) {
+            throw new Error("Region is required");
+          }
+          const result = await getWeatherForRegion(args.region);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case "getRegionalWeather": {
+          if (!args?.regions || !Array.isArray(args.regions)) {
+            throw new Error("Regions array is required");
+          }
+          const result = await getRegionalWeather(args.regions);
           return {
             content: [
               {

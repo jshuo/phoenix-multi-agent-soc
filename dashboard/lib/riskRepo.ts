@@ -5,6 +5,7 @@
  */
 
 import type { RiskItem, RiskQueryParams, RiskQueryResponse, RiskTrend } from "@/types/risk";
+import { getRegionalWeather } from "./weather";
 
 // Mock data for development - replace with actual API calls
 const MOCK_RISKS: RiskItem[] = [
@@ -370,6 +371,16 @@ export async function getBatteryPerformance(params: {
         };
       });
       
+      // Fetch weather data for all unique regions
+      const uniqueRegions = [...new Set(enhancedDevices.map(d => d.region))];
+      let weatherData = {};
+      try {
+        weatherData = await getRegionalWeather(uniqueRegions);
+        console.log('[Risk Repo] Weather data fetched for battery performance analysis');
+      } catch (error: any) {
+        console.warn('[Risk Repo] Failed to fetch weather data:', error.message);
+      }
+      
       return {
         devices: enhancedDevices,
         summary: {
@@ -381,6 +392,7 @@ export async function getBatteryPerformance(params: {
           totalAlerts: enhancedDevices.reduce((sum, d) => sum + (d.alerts?.length || 0), 0),
           criticalAlerts: enhancedDevices.reduce((sum, d) => sum + (d.alerts?.filter((a: any) => a.severity === 'critical').length || 0), 0)
         },
+        weather: weatherData,
         analytics: {
           kalmanFilterApplied: true,      // ✅ Kalman filter was applied!
           zScoreAnalysisApplied: true,    // ✅ Z-score analysis is NOW enabled!
@@ -389,7 +401,8 @@ export async function getBatteryPerformance(params: {
             Math.abs(d.voltageZScore) > 2 || 
             Math.abs(d.capacityZScore) > 2 ||
             Math.abs(d.temperatureZScore) > 2
-          ).length
+          ).length,
+          weatherDataIncluded: Object.keys(weatherData).length > 0
         },
         timestamp: new Date().toISOString()
       };
@@ -407,6 +420,16 @@ export async function getBatteryPerformance(params: {
     return true;
   });
 
+  // Fetch weather data for all unique regions
+  const uniqueRegions = [...new Set(filtered.map(d => d.region))];
+  let weatherData = {};
+  try {
+    weatherData = await getRegionalWeather(uniqueRegions);
+    console.log('[Risk Repo] Weather data fetched for battery performance analysis');
+  } catch (error: any) {
+    console.warn('[Risk Repo] Failed to fetch weather data:', error.message);
+  }
+
   return {
     devices: filtered,
     summary: {
@@ -418,11 +441,13 @@ export async function getBatteryPerformance(params: {
       totalAlerts: 0,
       criticalAlerts: 0
     },
+    weather: weatherData,
     analytics: {
       kalmanFilterApplied: false,
       zScoreAnalysisApplied: false,
       rulesEvaluated: 0,
-      anomaliesDetected: 0
+      anomaliesDetected: 0,
+      weatherDataIncluded: Object.keys(weatherData).length > 0
     },
     timestamp: new Date().toISOString()
   };

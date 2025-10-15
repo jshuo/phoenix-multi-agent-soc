@@ -8,6 +8,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
 import type { ExecutiveSummary, RiskItem } from "@/types/risk";
 import { getTopRisks, getRiskTrends, getRiskSummary, getSupplierRisks, getBatteryPerformance, getBatteryReliability, getAlertTrends } from "./riskRepo";
+import { getCityNameForRegion } from "./weather";
 
 // Structured output schema for executive responses
 const ExecutiveAnswerSchema = z.object({
@@ -168,9 +169,11 @@ CRITICAL: OUTPUT MUST USE MARKDOWN FORMATTING
 
 Your summary MUST be formatted with proper markdown syntax for rich display:
 
+IMPORTANT: Always refer to locations by their CITY names (e.g., Singapore, Frankfurt, New York) instead of regions (e.g., Asia-Pacific, Europe, North America) for better clarity and specificity.
+
 REQUIRED MARKDOWN ELEMENTS:
-1. **Bold text** for all key metrics, numbers, percentages, device names, regions
-   - Examples: **4 devices**, **64%**, **7 alerts**, **GPS Tracker B2**, **Asia-Pacific**
+1. **Bold text** for all key metrics, numbers, percentages, device names, city locations
+   - Examples: **4 devices**, **64%**, **7 alerts**, **GPS Tracker B2**, **Singapore**
    
 2. *Italic text* for emphasis on important terms
    - Examples: *immediate attention*, *critical priority*, *recommended action*
@@ -205,11 +208,11 @@ RESPONSE STRUCTURE (DETAILED AND COMPREHENSIVE):
 **Opening Paragraph (2-3 sentences):**
 Start with a high-level summary including total device count, regional distribution, health status breakdown, and overall severity assessment. Use specific numbers and be business-friendly.
 
-Example: "The IoT battery performance analysis reveals **critical issues** with certain devices across **Asia-Pacific** and **Europe** regions. Out of **4 devices** analyzed, **2 are ✅ healthy**, **1 in 🟡 warning state**, and **1 in 🔴 critical state**. Average battery capacity stands at **64%**, with **7 total alerts** issued, including **1 🚨 critical alert** requiring *immediate attention*."
+Example: "The IoT battery performance analysis reveals **critical issues** with certain devices across **Singapore** and **Frankfurt**. Out of **4 devices** analyzed, **2 are ✅ healthy**, **1 in 🟡 warning state**, and **1 in 🔴 critical state**. Average battery capacity stands at **64%**, with **7 total alerts** issued, including **1 🚨 critical alert** requiring *immediate attention*."
 
 **Key Statistics Section:**
 Use bullet points to list:
-- Total devices analyzed: **X devices** across **Y regions**
+- Total devices analyzed: **X devices** across **Y cities**
 - Health distribution: **X healthy** ✅, **Y warning** 🟡, **Z critical** 🔴
 - Average battery capacity: **XX%**
 - Total alerts: **X alerts** (including **Y critical alerts** 🚨)
@@ -217,7 +220,7 @@ Use bullet points to list:
 
 **Critical Issues Section (if any):**
 For each critical device, provide:
-🔴 **Device Name** (Region)
+🔴 **Device Name** (City)
 - Status: *Critical*
 - Battery capacity: **XX%** (with context like "dropped from YY%")
 - Key issues: Specific technical problems explained in business terms
@@ -226,7 +229,7 @@ For each critical device, provide:
 
 **Warning Issues Section (if any):**
 For each warning device, provide:
-🟡 **Device Name** (Region)
+🟡 **Device Name** (City)
 - Status: *Warning*
 - Battery capacity: **XX%**
 - Concerns: Specific degradation patterns
@@ -244,12 +247,20 @@ For each warning device, provide:
 - Alert rule evaluation (**X rules** evaluated)
 - Statistical trend analysis
 
+**Environmental Factors:**
+If weather data is available, include:
+🌡️ **City Weather Conditions:**
+- **[City Name]**: XX°C, [conditions] - [correlation with battery performance]
+- Highlight if high temperatures (>30°C) may be affecting battery health
+- Note any extreme weather conditions impacting device reliability
+
 **Recommendations:**
 Use numbered list with specific, actionable items:
 1. **Immediate action:** Replace [Device Name] to prevent operational failure
 2. **Priority (48 hours):** Schedule replacement for [Device Name]
 3. **Monitor:** Continue tracking [Device Names] for degradation
-4. **Review:** Investigate root cause of capacity drop in [Region]
+4. **Review:** Investigate root cause of capacity drop in [City Name]
+5. **Environmental:** Consider climate control or device relocation for hot cities
 
 DO NOT:
 - Use markdown headers with # symbols (no # ## ### ####)
@@ -259,8 +270,9 @@ DO NOT:
 - Skip line breaks between paragraphs
 - Be too brief - provide comprehensive details with specific numbers
 - Use technical jargon without business context
+- Refer to regions - always use specific city names
 
-REMEMBER: Executives need detailed, specific information with business impact. Every metric should be bolded. Every device should be named. Every recommendation should be actionable with timelines.`;
+REMEMBER: Executives need detailed, specific information with business impact. Every metric should be bolded. Every device should be named with its city location. Every recommendation should be actionable with timelines.`;
 
   const userPrompt = `Question: ${question}
 
@@ -279,22 +291,48 @@ Provide a comprehensive, detailed executive summary with rich markdown formattin
       { role: "user", content: userPrompt },
     ]);
 
+    // Map regions to cities for display
+    const dataWithCities = (response.data as RiskItem[]).map(item => ({
+      ...item,
+      city: item.region ? getCityNameForRegion(item.region) : undefined
+    }));
+    
+    const batteryDataWithCities = (toolResults.batteryData?.devices || []).map((device: any) => ({
+      ...device,
+      city: device.region ? getCityNameForRegion(device.region) : undefined
+    }));
+
     return {
       summary: response.summary,
-      data: response.data as RiskItem[],
+      data: dataWithCities,
+      batteryData: batteryDataWithCities,
+      weatherData: toolResults.batteryData?.weather || {},
       trends: response.trends as any,
       sources: response.sources || ["Risk Repository", "IoT Device Monitoring"],
       recommendations: response.recommendations,
+      detailedSummary: toolResults.batteryReliability?.summary || toolResults.suppliers?.summary
     };
   } catch (error) {
     console.error("Error generating executive response:", error);
     
-    // Fallback response
+    // Fallback response with city mapping
+    const fallbackDataWithCities = (toolResults.risks || []).map((item: RiskItem) => ({
+      ...item,
+      city: item.region ? getCityNameForRegion(item.region) : undefined
+    }));
+    
+    const fallbackBatteryWithCities = (toolResults.batteryData?.devices || []).map((device: any) => ({
+      ...device,
+      city: device.region ? getCityNameForRegion(device.region) : undefined
+    }));
+
     return {
       summary: `Analysis for: ${question}. ${
         toolResults.risks?.length || 0
       } risks identified. Please review the data below.`,
-      data: toolResults.risks || [],
+      data: fallbackDataWithCities,
+      batteryData: fallbackBatteryWithCities,
+      weatherData: toolResults.batteryData?.weather || {},
       trends: toolResults.trends,
       sources: ["Risk Repository"],
     };

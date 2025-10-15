@@ -15,6 +15,7 @@ export type RiskItem = {
   }>;
   timeWindow: string; // "2025-10-01..2025-10-07"
   region: string;
+  city?: string; // Display city name instead of region
   lastUpdated: string;
 };
 
@@ -56,7 +57,10 @@ export type RiskTrend = {
 export type ExecutiveSummary = {
   summary: string;
   data: RiskItem[];
+  batteryData?: any[];
+  weatherData?: Record<string, any>;
   trends?: RiskTrend[];
   sources?: string[];
   recommendations?: string[];
+  detailedSummary?: string;
 };
