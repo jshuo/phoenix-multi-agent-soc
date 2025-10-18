@@ -99,8 +99,8 @@ const ExecutiveDashboard = () => {
             <div className="flex items-center gap-3">
               <Package className="w-8 h-8 text-blue-400" />
               <div>
-                <h1 className="text-2xl font-bold text-white">Supply Chain Intelligence</h1>
-                <p className="text-sm text-slate-400">Executive Dashboard</p>
+                <h1 className="text-2xl font-bold text-white">Arviem-ItracXing: AI Monitoring as a Service </h1>
+              <p className="text-sm text-slate-400">Executive Dashboard</p>
               </div>
             </div>
             <div className="flex gap-4 text-sm">
@@ -190,7 +190,7 @@ const ExecutiveDashboard = () => {
           </div>
 
           {/* Messages */}
-          <div className="h-96 overflow-y-auto px-6 py-4 space-y-6">
+          <div className="h-[28rem] md:h-[36rem] lg:h-[40rem] overflow-y-auto px-6 py-4 space-y-6">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-3xl w-full ${msg.type === 'user' ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-900/50' : 'bg-slate-800/80 text-slate-100 border border-slate-700 shadow-xl'} rounded-2xl overflow-hidden`}>
